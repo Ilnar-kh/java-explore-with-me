@@ -2,6 +2,8 @@ package ru.practicum.stats.server.service.impl;
 
 import java.time.LocalDateTime;
 import java.util.List;
+
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import ru.practicum.stats.dto.EndpointHitDto;
@@ -21,6 +23,7 @@ public class StatsServiceImpl implements StatsService {
     }
 
     @Override
+    @Transactional
     public EndpointHitDto saveHit(EndpointHitDto endpointHitDto) {
         EndpointHit hit = EndpointHitMapper.toEntity(endpointHitDto);
         EndpointHit saved = endpointHitRepository.save(hit);
