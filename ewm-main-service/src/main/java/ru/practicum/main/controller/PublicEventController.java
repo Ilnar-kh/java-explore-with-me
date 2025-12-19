@@ -1,6 +1,8 @@
 package ru.practicum.main.controller;
 
-import org.springframework.http.HttpStatus;
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -9,12 +11,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.main.dto.EventFullDto;
 import ru.practicum.main.dto.EventShortDto;
-
-import java.util.List;
+import ru.practicum.main.service.EventService;
 
 @RestController
 @RequestMapping("/events")
+@RequiredArgsConstructor
 public class PublicEventController {
+    private final EventService eventService;
 
     @GetMapping
     public ResponseEntity<List<EventShortDto>> getEvents(@RequestParam(required = false) String text,
@@ -25,12 +28,14 @@ public class PublicEventController {
                                                          @RequestParam(defaultValue = "false") Boolean onlyAvailable,
                                                          @RequestParam(required = false) String sort,
                                                          @RequestParam(defaultValue = "0") Integer from,
-                                                         @RequestParam(defaultValue = "10") Integer size) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+                                                         @RequestParam(defaultValue = "10") Integer size,
+                                                         HttpServletRequest request) {
+        return ResponseEntity.ok(eventService.getEventsPublic(text, categories, paid, rangeStart, rangeEnd,
+                onlyAvailable, sort, from, size, request));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<EventFullDto> getEvent(@PathVariable Long id) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+    public ResponseEntity<EventFullDto> getEvent(@PathVariable Long id, HttpServletRequest request) {
+        return ResponseEntity.ok(eventService.getPublicEvent(id, request));
     }
 }

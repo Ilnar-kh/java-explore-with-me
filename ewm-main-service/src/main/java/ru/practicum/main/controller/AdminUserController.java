@@ -1,7 +1,8 @@
 package ru.practicum.main.controller;
 
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,27 +14,29 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.main.dto.NewUserRequest;
 import ru.practicum.main.dto.UserDto;
-
-import java.util.List;
+import ru.practicum.main.service.UserService;
 
 @RestController
 @RequestMapping("/admin/users")
+@RequiredArgsConstructor
 public class AdminUserController {
+    private final UserService userService;
 
     @GetMapping
     public ResponseEntity<List<UserDto>> getUsers(@RequestParam(required = false) List<Long> ids,
                                                   @RequestParam(defaultValue = "0") Integer from,
                                                   @RequestParam(defaultValue = "10") Integer size) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+        return ResponseEntity.ok(userService.getUsers(ids, from, size));
     }
 
     @PostMapping
     public ResponseEntity<UserDto> registerUser(@Valid @RequestBody NewUserRequest dto) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+        return ResponseEntity.status(201).body(userService.registerUser(dto));
     }
 
     @DeleteMapping("/{userId}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long userId) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+        userService.deleteUser(userId);
+        return ResponseEntity.noContent().build();
     }
 }

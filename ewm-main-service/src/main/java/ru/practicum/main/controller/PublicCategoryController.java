@@ -1,6 +1,7 @@
 package ru.practicum.main.controller;
 
-import org.springframework.http.HttpStatus;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -8,21 +9,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.main.dto.CategoryDto;
-
-import java.util.List;
+import ru.practicum.main.service.CategoryService;
 
 @RestController
 @RequestMapping("/categories")
+@RequiredArgsConstructor
 public class PublicCategoryController {
+    private final CategoryService categoryService;
 
     @GetMapping
     public ResponseEntity<List<CategoryDto>> getCategories(@RequestParam(defaultValue = "0") Integer from,
                                                            @RequestParam(defaultValue = "10") Integer size) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+        return ResponseEntity.ok(categoryService.getCategories(from, size));
     }
 
     @GetMapping("/{catId}")
     public ResponseEntity<CategoryDto> getCategory(@PathVariable Long catId) {
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+        return ResponseEntity.ok(categoryService.getCategory(catId));
     }
 }
