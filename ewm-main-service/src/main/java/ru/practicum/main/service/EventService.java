@@ -99,10 +99,10 @@ public class EventService {
         if (dto.getEventDate() != null) {
             LocalDateTime newDate = DateTimeUtils.parse(dto.getEventDate());
             if (newDate.isBefore(LocalDateTime.now().plusHours(1))) {
-                throw new ConflictException("Event date must be at least one hour in the future");
+                throw new BadRequestException("Event date must be at least one hour in the future");
             }
             if (event.getPublishedOn() != null && newDate.isBefore(event.getPublishedOn().plusHours(1))) {
-                throw new ConflictException("Event date must be at least one hour after publication");
+                throw new BadRequestException("Event date must be at least one hour after publication");
             }
         }
 
@@ -115,7 +115,7 @@ public class EventService {
                     }
                     LocalDateTime publishTime = LocalDateTime.now();
                     if (event.getEventDate().isBefore(publishTime.plusHours(1))) {
-                        throw new ConflictException("Event date must be at least one hour after publication");
+                        throw new BadRequestException("Event date must be at least one hour after publication");
                     }
                     event.setState(EventState.PUBLISHED);
                     event.setPublishedOn(publishTime);
@@ -240,7 +240,7 @@ public class EventService {
     public EventFullDto addEvent(Long userId, NewEventDto dto) {
         LocalDateTime eventDate = DateTimeUtils.parse(dto.getEventDate());
         if (eventDate.isBefore(LocalDateTime.now().plusHours(2))) {
-            throw new ConflictException("Event date must be at least two hours in the future");
+            throw new BadRequestException("Event date must be at least two hours in the future");
         }
 
         User initiator = userService.getUserEntity(userId);
@@ -271,7 +271,7 @@ public class EventService {
         if (dto.getEventDate() != null) {
             LocalDateTime newDate = DateTimeUtils.parse(dto.getEventDate());
             if (newDate.isBefore(LocalDateTime.now().plusHours(2))) {
-                throw new ConflictException("Event date must be at least two hours in the future");
+                throw new BadRequestException("Event date must be at least two hours in the future");
             }
         }
 
@@ -318,6 +318,10 @@ public class EventService {
                                     Integer participantLimit,
                                     Boolean requestModeration,
                                     String title) {
+        if (participantLimit != null && participantLimit < 0) {
+            throw new BadRequestException("participantLimit must be >= 0");
+        }
+
         if (annotation != null) {
             event.setAnnotation(annotation);
         }

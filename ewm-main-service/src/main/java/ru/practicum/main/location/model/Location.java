@@ -16,10 +16,10 @@ public class Location {
     private Long id;
 
     @Column(nullable = false)
-    private Float lat;
+    private Double lat;
 
     @Column(nullable = false)
-    private Float lon;
+    private Double lon;
 
     public Long getId() {
         return id;
@@ -29,19 +29,19 @@ public class Location {
         this.id = id;
     }
 
-    public Float getLat() {
+    public Double getLat() {
         return lat;
     }
 
-    public void setLat(Float lat) {
+    public void setLat(Double lat) {
         this.lat = lat;
     }
 
-    public Float getLon() {
+    public Double getLon() {
         return lon;
     }
 
-    public void setLon(Float lon) {
+    public void setLon(Double lon) {
         this.lon = lon;
     }
 }

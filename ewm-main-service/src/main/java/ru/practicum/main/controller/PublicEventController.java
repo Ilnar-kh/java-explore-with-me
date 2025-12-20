@@ -1,6 +1,7 @@
 package ru.practicum.main.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ru.practicum.main.dto.EventFullDto;
 import ru.practicum.main.dto.EventShortDto;
+import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.service.EventService;
 
 @RestController
@@ -36,6 +38,7 @@ public class PublicEventController {
             @RequestParam(defaultValue = "0") Integer from,
             @RequestParam(defaultValue = "10") Integer size,
             HttpServletRequest request) {
+        if (from < 0 || size <= 0) throw new BadRequestException("Invalid pagination");
 
         return ResponseEntity.ok(
                 eventService.getEventsPublic(

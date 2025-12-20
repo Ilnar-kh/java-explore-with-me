@@ -19,6 +19,7 @@ import ru.practicum.main.dto.NewEventDto;
 import ru.practicum.main.dto.UpdateEventUserRequest;
 import ru.practicum.main.service.EventService;
 
+@Valid
 @RestController
 @RequestMapping("/users/{userId}/events")
 public class PrivateEventController {

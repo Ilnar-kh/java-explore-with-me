@@ -16,6 +16,7 @@ import ru.practicum.main.dto.EventFullDto;
 import ru.practicum.main.dto.UpdateEventAdminRequest;
 import ru.practicum.main.service.EventService;
 
+@Valid
 @RestController
 @RequestMapping("/admin/events")
 public class AdminEventController {
