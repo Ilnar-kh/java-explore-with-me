@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -60,6 +59,7 @@ public class EventService {
                                              int from,
                                              int size) {
         List<EventState> stateEnums = parseStates(states);
+
         LocalDateTime start = rangeStart == null ? null : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = rangeEnd == null ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
@@ -96,18 +96,13 @@ public class EventService {
             event.setLocation(locationService.save(dto.getLocation()));
         }
 
-        if (dto.getEventDate() != null && event.getPublishedOn() != null) {
+        if (dto.getEventDate() != null) {
             LocalDateTime newDate = DateTimeUtils.parse(dto.getEventDate());
-            if (newDate.isBefore(event.getPublishedOn().plusHours(1))) {
+            if (newDate.isBefore(LocalDateTime.now().plusHours(1))) {
+                throw new ConflictException("Event date must be at least one hour in the future");
+            }
+            if (event.getPublishedOn() != null && newDate.isBefore(event.getPublishedOn().plusHours(1))) {
                 throw new ConflictException("Event date must be at least one hour after publication");
-            }
-            if (newDate.isBefore(LocalDateTime.now().plusHours(1))) {
-                throw new ConflictException("Event date must be at least one hour in the future");
-            }
-        } else if (dto.getEventDate() != null) {
-            LocalDateTime newDate = DateTimeUtils.parse(dto.getEventDate());
-            if (newDate.isBefore(LocalDateTime.now().plusHours(1))) {
-                throw new ConflictException("Event date must be at least one hour in the future");
             }
         }
 
@@ -155,30 +150,63 @@ public class EventService {
                                                HttpServletRequest request) {
         statsService.hit(request);
 
-        LocalDateTime start = rangeStart == null ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
-        LocalDateTime end = rangeEnd == null ? null : DateTimeUtils.parse(rangeEnd);
+        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
+        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
+
+        // нормализуем text: пустая строка == нет фильтра
+        String normText = (text == null || text.isBlank()) ? null : text;
+
+        // categories: чтобы native IN (:categories) не развалился на пустом списке
+        boolean categoriesEmpty = (categories == null || categories.isEmpty());
+        List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
 
         Sort pageableSort = "EVENT_DATE".equals(sort) ? Sort.by("eventDate").ascending() : Sort.unsorted();
         PageRequest pageRequest = PageRequest.of(from / size, size, pageableSort);
 
-        List<Event> events = eventRepository
-                .findAllPublishedByFilters(text, categories, paid, start, end, onlyAvailable, pageRequest)
-                .getContent();
+        List<Event> events;
+        if (normText == null) {
+            events = eventRepository
+                    .findAllPublishedByFiltersNoText(
+                            categoriesEmpty,
+                            safeCategories,
+                            paid,
+                            start,
+                            end,
+                            onlyAvailable,
+                            pageRequest
+                    )
+                    .getContent();
+        } else {
+            events = eventRepository
+                    .findAllPublishedByFiltersWithText(
+                            normText,
+                            categoriesEmpty,
+                            safeCategories,
+                            paid,
+                            start,
+                            end,
+                            onlyAvailable,
+                            pageRequest
+                    )
+                    .getContent();
+        }
 
         Map<Long, Long> views = resolveViews(events);
 
         List<EventShortDto> result = events.stream()
-                .map(event -> EventMapper.toShortDto(event, views.get(event.getId())))
-                .collect(Collectors.toList());
+                .map(event -> EventMapper.toShortDto(event, views.getOrDefault(event.getId(), 0L)))
+                .toList();
 
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
                             b.getViews() == null ? 0 : b.getViews(),
-                            a.getViews() == null ? 0 : a.getViews()))
-                    .collect(Collectors.toList());
+                            a.getViews() == null ? 0 : a.getViews()
+                    ))
+                    .toList();
         }
+
         return result;
     }
 
@@ -194,7 +222,9 @@ public class EventService {
         }
 
         Map<Long, Long> views = resolveViews(List.of(event));
-        return EventMapper.toFullDto(event, views.get(event.getId()));
+        long v = views.getOrDefault(event.getId(), 0L);
+
+        return EventMapper.toFullDto(event, v);
     }
 
     @Transactional(readOnly = true)
@@ -317,6 +347,10 @@ public class EventService {
     }
 
     private Map<Long, Long> resolveViews(List<Event> events) {
+        if (events == null || events.isEmpty()) {
+            return Map.of();
+        }
+
         List<String> uris = events.stream()
                 .map(event -> "/events/" + event.getId())
                 .toList();
@@ -325,8 +359,9 @@ public class EventService {
 
         Map<Long, Long> result = new HashMap<>();
         for (Event event : events) {
-            Long views = stats.getOrDefault("/events/" + event.getId(), event.getViews());
-            result.put(event.getId(), views);
+            long v = stats.getOrDefault("/events/" + event.getId(),
+                    event.getViews() == null ? 0L : event.getViews());
+            result.put(event.getId(), v);
         }
         return result;
     }
