@@ -3,7 +3,7 @@ package ru.practicum.main.mapper;
 import ru.practicum.main.dto.LocationDto;
 import ru.practicum.main.location.model.Location;
 
-public class LocationMapper {
+public final class LocationMapper {
 
     private LocationMapper() {
     }
@@ -14,8 +14,8 @@ public class LocationMapper {
         }
 
         Location location = new Location();
-        location.setLat((double) dto.getLat().floatValue());
-        location.setLon((double) dto.getLon().floatValue());
+        location.setLat(dto.getLat());
+        location.setLon(dto.getLon());
         return location;
     }
 
@@ -25,8 +25,8 @@ public class LocationMapper {
         }
 
         return new LocationDto(
-                location.getLat().doubleValue(),
-                location.getLon().doubleValue()
+                location.getLat(),
+                location.getLon()
         );
     }
 }
