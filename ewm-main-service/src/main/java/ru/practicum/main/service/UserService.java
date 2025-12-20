@@ -1,10 +1,11 @@
 package ru.practicum.main.service;
 
 import java.util.List;
-import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import ru.practicum.main.dto.NewUserRequest;
 import ru.practicum.main.dto.UserDto;
 import ru.practicum.main.exception.ConflictException;
@@ -14,18 +15,24 @@ import ru.practicum.main.user.model.User;
 import ru.practicum.main.user.repository.UserRepository;
 
 @Service
-@RequiredArgsConstructor
 public class UserService {
+
     private final UserRepository userRepository;
+
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
 
     @Transactional(readOnly = true)
     public List<UserDto> getUsers(List<Long> ids, int from, int size) {
         PageRequest pageRequest = PageRequest.of(from / size, size);
+
         if (ids == null || ids.isEmpty()) {
             return userRepository.findAll(pageRequest)
                     .map(UserMapper::toDto)
                     .getContent();
         }
+
         return userRepository.findAllByIdIn(ids, pageRequest)
                 .map(UserMapper::toDto)
                 .getContent();

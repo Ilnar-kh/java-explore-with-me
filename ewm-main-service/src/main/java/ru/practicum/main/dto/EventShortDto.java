@@ -2,27 +2,96 @@ package ru.practicum.main.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.Builder;
-import lombok.Value;
 
-@Value
-@Builder
 public class EventShortDto {
+
     @NotBlank
-    String annotation;
+    private String annotation;
+
     @NotNull
-    CategoryDto category;
+    private CategoryDto category;
+
     @NotNull
-    Long confirmedRequests;
+    private Long confirmedRequests;
+
     @NotBlank
-    String eventDate;
+    private String eventDate;
+
     @NotNull
-    Long id;
+    private Long id;
+
     @NotNull
-    UserShortDto initiator;
+    private UserShortDto initiator;
+
     @NotNull
-    Boolean paid;
+    private Boolean paid;
+
     @NotBlank
-    String title;
-    Long views;
+    private String title;
+
+    private Long views;
+
+    public EventShortDto() {
+    }
+
+    public EventShortDto(String annotation,
+                         CategoryDto category,
+                         Long confirmedRequests,
+                         String eventDate,
+                         Long id,
+                         UserShortDto initiator,
+                         Boolean paid,
+                         String title,
+                         Long views) {
+        this.annotation = annotation;
+        this.category = category;
+        this.confirmedRequests = confirmedRequests;
+        this.eventDate = eventDate;
+        this.id = id;
+        this.initiator = initiator;
+        this.paid = paid;
+        this.title = title;
+        this.views = views;
+    }
+
+
+    public String getAnnotation() {
+        return annotation;
+    }
+
+    public CategoryDto getCategory() {
+        return category;
+    }
+
+    public Long getConfirmedRequests() {
+        return confirmedRequests;
+    }
+
+    public String getEventDate() {
+        return eventDate;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public UserShortDto getInitiator() {
+        return initiator;
+    }
+
+    public Boolean getPaid() {
+        return paid;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public Long getViews() {
+        return views;
+    }
+
+    public void setViews(Long views) {
+        this.views = views;
+    }
 }

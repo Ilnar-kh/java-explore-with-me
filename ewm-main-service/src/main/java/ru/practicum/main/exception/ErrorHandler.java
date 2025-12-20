@@ -46,13 +46,15 @@ public class ErrorHandler {
 
     private ResponseEntity<ApiError> buildError(HttpStatus status, String reason, String message) {
         List<String> errors = message == null ? Collections.emptyList() : List.of(message);
-        ApiError apiError = ApiError.builder()
-                .errors(errors)
-                .reason(reason)
-                .message(message)
-                .status(status.name())
-                .timestamp(LocalDateTime.now())
-                .build();
+
+        ApiError apiError = new ApiError(
+                errors,
+                message,
+                reason,
+                status.name(),
+                LocalDateTime.now()
+        );
+
         return ResponseEntity.status(status).body(apiError);
     }
 }

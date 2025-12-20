@@ -1,13 +1,23 @@
 package ru.practicum.main.dto;
 
-import lombok.Builder;
-import lombok.Value;
-
 import java.util.List;
 
-@Value
-@Builder
 public class EventRequestStatusUpdateResult {
-    List<ParticipationRequestDto> confirmedRequests;
-    List<ParticipationRequestDto> rejectedRequests;
+
+    private final List<ParticipationRequestDto> confirmedRequests;
+    private final List<ParticipationRequestDto> rejectedRequests;
+
+    public EventRequestStatusUpdateResult(List<ParticipationRequestDto> confirmedRequests,
+                                          List<ParticipationRequestDto> rejectedRequests) {
+        this.confirmedRequests = confirmedRequests;
+        this.rejectedRequests = rejectedRequests;
+    }
+
+    public List<ParticipationRequestDto> getConfirmedRequests() {
+        return confirmedRequests;
+    }
+
+    public List<ParticipationRequestDto> getRejectedRequests() {
+        return rejectedRequests;
+    }
 }

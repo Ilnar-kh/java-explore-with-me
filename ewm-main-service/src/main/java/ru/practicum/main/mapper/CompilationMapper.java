@@ -3,31 +3,35 @@ package ru.practicum.main.mapper;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.experimental.UtilityClass;
+
 import ru.practicum.main.compilation.model.Compilation;
-import ru.practicum.main.event.model.Event;
 import ru.practicum.main.dto.CompilationDto;
+import ru.practicum.main.dto.EventShortDto;
+import ru.practicum.main.event.model.Event;
 
-@UtilityClass
-public class CompilationMapper {
+public final class CompilationMapper {
 
-    public CompilationDto toDto(Compilation compilation, Map<Long, Long> eventViews) {
-        List<ru.practicum.main.dto.EventShortDto> events = compilation.getEvents()
+    private CompilationMapper() {
+    }
+
+    public static CompilationDto toDto(Compilation compilation, Map<Long, Long> eventViews) {
+
+        List<EventShortDto> events = compilation.getEvents()
                 .stream()
                 .map(event -> EventMapper.toShortDto(event, resolveViews(event, eventViews)))
                 .collect(Collectors.toList());
 
-        return CompilationDto.builder()
-                .id(compilation.getId())
-                .events(events)
-                .pinned(compilation.getPinned())
-                .title(compilation.getTitle())
-                .build();
+        return new CompilationDto(
+                events,
+                compilation.getId(),
+                compilation.getPinned(),
+                compilation.getTitle()
+        );
     }
 
-    private Long resolveViews(Event event, Map<Long, Long> viewsMap) {
+    private static Long resolveViews(Event event, Map<Long, Long> viewsMap) {
         if (viewsMap == null) {
-            return null;
+            return event.getViews();
         }
         return viewsMap.getOrDefault(event.getId(), event.getViews());
     }

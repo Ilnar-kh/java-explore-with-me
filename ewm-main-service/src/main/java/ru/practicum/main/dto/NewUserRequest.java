@@ -3,18 +3,39 @@ package ru.practicum.main.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Builder;
-import lombok.Value;
 
-@Value
-@Builder
 public class NewUserRequest {
+
     @NotBlank
     @Email
     @Size(min = 6, max = 254)
-    String email;
+    private String email;
 
     @NotBlank
     @Size(min = 2, max = 250)
-    String name;
+    private String name;
+
+    public NewUserRequest() {
+    }
+
+    public NewUserRequest(String email, String name) {
+        this.email = email;
+        this.name = name;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
 }

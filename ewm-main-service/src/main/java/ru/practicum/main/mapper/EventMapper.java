@@ -1,6 +1,5 @@
 package ru.practicum.main.mapper;
 
-import lombok.experimental.UtilityClass;
 import ru.practicum.main.category.model.Category;
 import ru.practicum.main.dto.EventFullDto;
 import ru.practicum.main.dto.EventShortDto;
@@ -10,10 +9,13 @@ import ru.practicum.main.location.model.Location;
 import ru.practicum.main.user.model.User;
 import ru.practicum.main.util.DateTimeUtils;
 
-@UtilityClass
-public class EventMapper {
+public final class EventMapper {
 
-    public Event toEntity(NewEventDto dto, Category category, User initiator, Location location) {
+    private EventMapper() {
+        // utility class
+    }
+
+    public static Event toEntity(NewEventDto dto, Category category, User initiator, Location location) {
         Event event = new Event();
         event.setAnnotation(dto.getAnnotation());
         event.setDescription(dto.getDescription());
@@ -22,44 +24,50 @@ public class EventMapper {
         event.setCategory(category);
         event.setInitiator(initiator);
         event.setLocation(location);
+
         event.setPaid(dto.getPaid() != null && dto.getPaid());
         event.setParticipantLimit(dto.getParticipantLimit() == null ? 0 : dto.getParticipantLimit());
         event.setRequestModeration(dto.getRequestModeration() == null || dto.getRequestModeration());
+
         return event;
     }
 
-    public EventFullDto toFullDto(Event event, Long views) {
-        return EventFullDto.builder()
-                .annotation(event.getAnnotation())
-                .category(CategoryMapper.toDto(event.getCategory()))
-                .confirmedRequests(event.getConfirmedRequests())
-                .createdOn(DateTimeUtils.format(event.getCreatedOn()))
-                .description(event.getDescription())
-                .eventDate(DateTimeUtils.format(event.getEventDate()))
-                .id(event.getId())
-                .initiator(UserMapper.toShortDto(event.getInitiator()))
-                .location(LocationMapper.toDto(event.getLocation()))
-                .paid(event.getPaid())
-                .participantLimit(event.getParticipantLimit())
-                .publishedOn(DateTimeUtils.format(event.getPublishedOn()))
-                .requestModeration(event.getRequestModeration())
-                .state(event.getState().name())
-                .title(event.getTitle())
-                .views(views == null ? event.getViews() : views)
-                .build();
+    public static EventFullDto toFullDto(Event event, Long views) {
+        Long resolvedViews = (views == null ? event.getViews() : views);
+
+        return new EventFullDto(
+                event.getAnnotation(),
+                CategoryMapper.toDto(event.getCategory()),
+                event.getConfirmedRequests(),
+                DateTimeUtils.format(event.getCreatedOn()),
+                event.getDescription(),
+                DateTimeUtils.format(event.getEventDate()),
+                event.getId(),
+                UserMapper.toShortDto(event.getInitiator()),
+                LocationMapper.toDto(event.getLocation()),
+                event.getPaid(),
+                event.getParticipantLimit(),
+                DateTimeUtils.format(event.getPublishedOn()),
+                event.getRequestModeration(),
+                event.getState().name(),
+                event.getTitle(),
+                resolvedViews
+        );
     }
 
-    public EventShortDto toShortDto(Event event, Long views) {
-        return EventShortDto.builder()
-                .annotation(event.getAnnotation())
-                .category(CategoryMapper.toDto(event.getCategory()))
-                .confirmedRequests(event.getConfirmedRequests())
-                .eventDate(DateTimeUtils.format(event.getEventDate()))
-                .id(event.getId())
-                .initiator(UserMapper.toShortDto(event.getInitiator()))
-                .paid(event.getPaid())
-                .title(event.getTitle())
-                .views(views == null ? event.getViews() : views)
-                .build();
+    public static EventShortDto toShortDto(Event event, Long views) {
+        Long resolvedViews = (views == null ? event.getViews() : views);
+
+        return new EventShortDto(
+                event.getAnnotation(),
+                CategoryMapper.toDto(event.getCategory()),
+                event.getConfirmedRequests(),
+                DateTimeUtils.format(event.getEventDate()),
+                event.getId(),
+                UserMapper.toShortDto(event.getInitiator()),
+                event.getPaid(),
+                event.getTitle(),
+                resolvedViews
+        );
     }
 }

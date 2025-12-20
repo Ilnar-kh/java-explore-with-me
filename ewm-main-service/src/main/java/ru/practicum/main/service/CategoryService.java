@@ -1,7 +1,6 @@
 package ru.practicum.main.service;
 
 import java.util.List;
-import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,10 +14,15 @@ import ru.practicum.main.exception.NotFoundException;
 import ru.practicum.main.mapper.CategoryMapper;
 
 @Service
-@RequiredArgsConstructor
 public class CategoryService {
+
     private final CategoryRepository categoryRepository;
     private final EventRepository eventRepository;
+
+    public CategoryService(CategoryRepository categoryRepository, EventRepository eventRepository) {
+        this.categoryRepository = categoryRepository;
+        this.eventRepository = eventRepository;
+    }
 
     @Transactional
     public CategoryDto addCategory(NewCategoryDto dto) {

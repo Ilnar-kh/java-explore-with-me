@@ -1,7 +1,6 @@
 package ru.practicum.main.controller;
 
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,9 +15,13 @@ import ru.practicum.main.service.CategoryService;
 
 @RestController
 @RequestMapping("/admin/categories")
-@RequiredArgsConstructor
 public class AdminCategoryController {
+
     private final CategoryService categoryService;
+
+    public AdminCategoryController(CategoryService categoryService) {
+        this.categoryService = categoryService;
+    }
 
     @PostMapping
     public ResponseEntity<CategoryDto> addCategory(@Valid @RequestBody NewCategoryDto dto) {

@@ -35,7 +35,7 @@ public class Event {
     @Column(nullable = false, length = 2000)
     private String annotation;
 
-    @Column(length = 7000)
+    @Column(nullable = false, length = 7000)
     private String description;
 
     @Column(name = "event_date", nullable = false)

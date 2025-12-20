@@ -6,10 +6,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import ru.practicum.main.compilation.model.Compilation;
 import ru.practicum.main.compilation.repository.CompilationRepository;
 import ru.practicum.main.dto.CompilationDto;
@@ -21,11 +22,19 @@ import ru.practicum.main.exception.NotFoundException;
 import ru.practicum.main.mapper.CompilationMapper;
 
 @Service
-@RequiredArgsConstructor
 public class CompilationService {
+
     private final CompilationRepository compilationRepository;
     private final EventRepository eventRepository;
     private final StatsService statsService;
+
+    public CompilationService(CompilationRepository compilationRepository,
+                              EventRepository eventRepository,
+                              StatsService statsService) {
+        this.compilationRepository = compilationRepository;
+        this.eventRepository = eventRepository;
+        this.statsService = statsService;
+    }
 
     @Transactional
     public CompilationDto saveCompilation(NewCompilationDto dto) {
@@ -42,6 +51,7 @@ public class CompilationService {
     public CompilationDto updateCompilation(Long compId, UpdateCompilationRequest dto) {
         Compilation compilation = compilationRepository.findById(compId)
                 .orElseThrow(() -> new NotFoundException("Compilation with id=" + compId + " was not found"));
+
         if (dto.getPinned() != null) {
             compilation.setPinned(dto.getPinned());
         }
@@ -51,6 +61,7 @@ public class CompilationService {
         if (dto.getEvents() != null) {
             compilation.setEvents(fetchEvents(dto.getEvents()));
         }
+
         Compilation saved = compilationRepository.save(compilation);
         return CompilationMapper.toDto(saved, resolveViews(saved));
     }
@@ -66,12 +77,14 @@ public class CompilationService {
     @Transactional(readOnly = true)
     public List<CompilationDto> getCompilations(Boolean pinned, int from, int size) {
         PageRequest pageRequest = PageRequest.of(from / size, size);
+
         List<Compilation> compilations;
         if (pinned == null) {
             compilations = compilationRepository.findAll(pageRequest).getContent();
         } else {
             compilations = compilationRepository.findAllByPinned(pinned, pageRequest).getContent();
         }
+
         return compilations.stream()
                 .map(compilation -> CompilationMapper.toDto(compilation, resolveViews(compilation)))
                 .toList();
@@ -88,23 +101,30 @@ public class CompilationService {
         if (ids == null || ids.isEmpty()) {
             return new HashSet<>();
         }
+
         List<Event> events = eventRepository.findAllById(ids);
         if (events.size() != ids.size()) {
             throw new NotFoundException("Some events were not found");
         }
+
         return new HashSet<>(events);
     }
 
     private Map<Long, Long> resolveViews(Compilation compilation) {
-        if (compilation.getEvents().isEmpty()) {
+        if (compilation.getEvents() == null || compilation.getEvents().isEmpty()) {
             return Collections.emptyMap();
         }
+
         List<String> uris = compilation.getEvents().stream()
                 .map(event -> "/events/" + event.getId())
                 .toList();
+
         Map<String, Long> stats = statsService.getViews(uris);
+
         return compilation.getEvents().stream()
-                .collect(Collectors.toMap(Event::getId,
-                        event -> stats.getOrDefault("/events/" + event.getId(), event.getViews())));
+                .collect(Collectors.toMap(
+                        Event::getId,
+                        event -> stats.getOrDefault("/events/" + event.getId(), event.getViews())
+                ));
     }
 }

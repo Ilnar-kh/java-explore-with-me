@@ -3,34 +3,126 @@ package ru.practicum.main.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Builder;
-import lombok.Value;
 
-@Value
-@Builder
 public class NewEventDto {
+
     @NotBlank
     @Size(min = 20, max = 2000)
-    String annotation;
+    private String annotation;
 
     @NotNull
-    Long category;
+    private Long category;
 
     @NotBlank
     @Size(min = 20, max = 7000)
-    String description;
+    private String description;
 
     @NotBlank
-    String eventDate;
+    private String eventDate;
 
     @NotNull
-    LocationDto location;
+    private LocationDto location;
 
-    Boolean paid;
-    Integer participantLimit;
-    Boolean requestModeration;
+    private Boolean paid;
+    private Integer participantLimit;
+    private Boolean requestModeration;
 
     @NotBlank
     @Size(min = 3, max = 120)
-    String title;
+    private String title;
+
+    public NewEventDto() {
+    }
+
+    public NewEventDto(String annotation,
+                       Long category,
+                       String description,
+                       String eventDate,
+                       LocationDto location,
+                       Boolean paid,
+                       Integer participantLimit,
+                       Boolean requestModeration,
+                       String title) {
+        this.annotation = annotation;
+        this.category = category;
+        this.description = description;
+        this.eventDate = eventDate;
+        this.location = location;
+        this.paid = paid;
+        this.participantLimit = participantLimit;
+        this.requestModeration = requestModeration;
+        this.title = title;
+    }
+
+    public String getAnnotation() {
+        return annotation;
+    }
+
+    public void setAnnotation(String annotation) {
+        this.annotation = annotation;
+    }
+
+    public Long getCategory() {
+        return category;
+    }
+
+    public void setCategory(Long category) {
+        this.category = category;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getEventDate() {
+        return eventDate;
+    }
+
+    public void setEventDate(String eventDate) {
+        this.eventDate = eventDate;
+    }
+
+    public LocationDto getLocation() {
+        return location;
+    }
+
+    public void setLocation(LocationDto location) {
+        this.location = location;
+    }
+
+    public Boolean getPaid() {
+        return paid;
+    }
+
+    public void setPaid(Boolean paid) {
+        this.paid = paid;
+    }
+
+    public Integer getParticipantLimit() {
+        return participantLimit;
+    }
+
+    public void setParticipantLimit(Integer participantLimit) {
+        this.participantLimit = participantLimit;
+    }
+
+    public Boolean getRequestModeration() {
+        return requestModeration;
+    }
+
+    public void setRequestModeration(Boolean requestModeration) {
+        this.requestModeration = requestModeration;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
 }

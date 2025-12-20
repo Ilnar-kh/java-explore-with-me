@@ -1,16 +1,18 @@
 package ru.practicum.main.service;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
+
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import ru.practicum.main.category.model.Category;
 import ru.practicum.main.category.repository.CategoryRepository;
 import ru.practicum.main.dto.EventFullDto;
@@ -29,13 +31,25 @@ import ru.practicum.main.util.DateTimeUtils;
 import ru.practicum.main.user.model.User;
 
 @Service
-@RequiredArgsConstructor
 public class EventService {
+
     private final EventRepository eventRepository;
     private final CategoryRepository categoryRepository;
     private final UserService userService;
     private final LocationService locationService;
     private final StatsService statsService;
+
+    public EventService(EventRepository eventRepository,
+                        CategoryRepository categoryRepository,
+                        UserService userService,
+                        LocationService locationService,
+                        StatsService statsService) {
+        this.eventRepository = eventRepository;
+        this.categoryRepository = categoryRepository;
+        this.userService = userService;
+        this.locationService = locationService;
+        this.statsService = statsService;
+    }
 
     @Transactional(readOnly = true)
     public List<EventFullDto> getEventsAdmin(List<Long> users,
@@ -49,10 +63,13 @@ public class EventService {
         LocalDateTime start = rangeStart == null ? null : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = rangeEnd == null ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
+
         PageRequest pageRequest = PageRequest.of(from / size, size);
 
-        List<Event> events = eventRepository.findAllByAdminFilters(users, stateEnums, categories, start, end, pageRequest)
+        List<Event> events = eventRepository
+                .findAllByAdminFilters(users, stateEnums, categories, start, end, pageRequest)
                 .getContent();
+
         return events.stream()
                 .map(event -> EventMapper.toFullDto(event, event.getViews()))
                 .toList();
@@ -63,8 +80,14 @@ public class EventService {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
 
-        applyCommonUpdates(event, dto.getAnnotation(), dto.getDescription(), dto.getEventDate(),
-                dto.getPaid(), dto.getParticipantLimit(), dto.getRequestModeration(), dto.getTitle());
+        applyCommonUpdates(event,
+                dto.getAnnotation(),
+                dto.getDescription(),
+                dto.getEventDate(),
+                dto.getPaid(),
+                dto.getParticipantLimit(),
+                dto.getRequestModeration(),
+                dto.getTitle());
 
         if (dto.getCategory() != null) {
             event.setCategory(getCategory(dto.getCategory()));
@@ -102,12 +125,14 @@ public class EventService {
                     event.setState(EventState.PUBLISHED);
                     event.setPublishedOn(publishTime);
                     break;
+
                 case "REJECT_EVENT":
                     if (event.getState() == EventState.PUBLISHED) {
                         throw new ConflictException("Cannot reject published event");
                     }
                     event.setState(EventState.CANCELED);
                     break;
+
                 default:
                     throw new BadRequestException("Unknown state action: " + dto.getStateAction());
             }
@@ -133,21 +158,24 @@ public class EventService {
         LocalDateTime start = rangeStart == null ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = rangeEnd == null ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
+
         Sort pageableSort = "EVENT_DATE".equals(sort) ? Sort.by("eventDate").ascending() : Sort.unsorted();
         PageRequest pageRequest = PageRequest.of(from / size, size, pageableSort);
 
-        List<Event> events = eventRepository.findAllPublishedByFilters(text, categories, paid, start, end,
-                        onlyAvailable, pageRequest)
+        List<Event> events = eventRepository
+                .findAllPublishedByFilters(text, categories, paid, start, end, onlyAvailable, pageRequest)
                 .getContent();
 
         Map<Long, Long> views = resolveViews(events);
+
         List<EventShortDto> result = events.stream()
                 .map(event -> EventMapper.toShortDto(event, views.get(event.getId())))
                 .collect(Collectors.toList());
 
         if ("VIEWS".equals(sort)) {
             result = result.stream()
-                    .sorted((a, b) -> Long.compare(b.getViews() == null ? 0 : b.getViews(),
+                    .sorted((a, b) -> Long.compare(
+                            b.getViews() == null ? 0 : b.getViews(),
                             a.getViews() == null ? 0 : a.getViews()))
                     .collect(Collectors.toList());
         }
@@ -157,11 +185,14 @@ public class EventService {
     @Transactional(readOnly = true)
     public EventFullDto getPublicEvent(Long id, HttpServletRequest request) {
         statsService.hit(request);
+
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + id + " was not found"));
+
         if (event.getState() != EventState.PUBLISHED) {
             throw new NotFoundException("Event with id=" + id + " was not found");
         }
+
         Map<Long, Long> views = resolveViews(List.of(event));
         return EventMapper.toFullDto(event, views.get(event.getId()));
     }
@@ -181,10 +212,13 @@ public class EventService {
         if (eventDate.isBefore(LocalDateTime.now().plusHours(2))) {
             throw new ConflictException("Event date must be at least two hours in the future");
         }
+
         User initiator = userService.getUserEntity(userId);
         Category category = getCategory(dto.getCategory());
+
         Event event = EventMapper.toEntity(dto, category, initiator, locationService.save(dto.getLocation()));
         Event saved = eventRepository.save(event);
+
         return EventMapper.toFullDto(saved, saved.getViews());
     }
 
@@ -199,17 +233,26 @@ public class EventService {
     public EventFullDto updateUserEvent(Long userId, Long eventId, UpdateEventUserRequest dto) {
         Event event = eventRepository.findByIdAndInitiatorId(eventId, userId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
+
         if (event.getState() != EventState.PENDING && event.getState() != EventState.CANCELED) {
             throw new ConflictException("Only pending or canceled events can be changed");
         }
+
         if (dto.getEventDate() != null) {
             LocalDateTime newDate = DateTimeUtils.parse(dto.getEventDate());
             if (newDate.isBefore(LocalDateTime.now().plusHours(2))) {
                 throw new ConflictException("Event date must be at least two hours in the future");
             }
         }
-        applyCommonUpdates(event, dto.getAnnotation(), dto.getDescription(), dto.getEventDate(),
-                dto.getPaid(), dto.getParticipantLimit(), dto.getRequestModeration(), dto.getTitle());
+
+        applyCommonUpdates(event,
+                dto.getAnnotation(),
+                dto.getDescription(),
+                dto.getEventDate(),
+                dto.getPaid(),
+                dto.getParticipantLimit(),
+                dto.getRequestModeration(),
+                dto.getTitle());
 
         if (dto.getCategory() != null) {
             event.setCategory(getCategory(dto.getCategory()));
@@ -217,14 +260,17 @@ public class EventService {
         if (dto.getLocation() != null) {
             event.setLocation(locationService.save(dto.getLocation()));
         }
+
         if (dto.getStateAction() != null) {
             switch (dto.getStateAction()) {
                 case "SEND_TO_REVIEW":
                     event.setState(EventState.PENDING);
                     break;
+
                 case "CANCEL_REVIEW":
                     event.setState(EventState.CANCELED);
                     break;
+
                 default:
                     throw new BadRequestException("Unknown state action: " + dto.getStateAction());
             }
@@ -274,7 +320,9 @@ public class EventService {
         List<String> uris = events.stream()
                 .map(event -> "/events/" + event.getId())
                 .toList();
+
         Map<String, Long> stats = statsService.getViews(uris);
+
         Map<Long, Long> result = new HashMap<>();
         for (Event event : events) {
             Long views = stats.getOrDefault("/events/" + event.getId(), event.getViews());
