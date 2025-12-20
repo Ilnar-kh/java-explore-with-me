@@ -18,14 +18,14 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     // ---------- Admin (JPQL можно оставить) ----------
     @Query("""
-        SELECT e
-        FROM Event e
-        WHERE (:#{#users == null or #users.isEmpty()} = true OR e.initiator.id IN :users)
-            AND (:#{#states == null or #states.isEmpty()} = true OR e.state IN :states)
-            AND (:#{#categories == null or #categories.isEmpty()} = true OR e.category.id IN :categories)
-            AND (:rangeStart IS NULL OR e.eventDate >= :rangeStart)
-            AND (:rangeEnd IS NULL OR e.eventDate <= :rangeEnd)
-    """)
+                SELECT e
+                FROM Event e
+                WHERE (:#{#users == null or #users.isEmpty()} = true OR e.initiator.id IN :users)
+                    AND (:#{#states == null or #states.isEmpty()} = true OR e.state IN :states)
+                    AND (:#{#categories == null or #categories.isEmpty()} = true OR e.category.id IN :categories)
+                    AND (:rangeStart IS NULL OR e.eventDate >= :rangeStart)
+                    AND (:rangeEnd IS NULL OR e.eventDate <= :rangeEnd)
+            """)
     Page<Event> findAllByAdminFilters(@Param("users") List<Long> users,
                                       @Param("states") List<EventState> states,
                                       @Param("categories") List<Long> categories,
@@ -35,25 +35,25 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     @Query(
             value = """
-        SELECT e.*
-        FROM events e
-        WHERE e.state = 'PUBLISHED'
-          AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-          AND (:paid IS NULL OR e.paid = :paid)
-          AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-          AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-          AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-        """,
+                    SELECT e.*
+                    FROM events e
+                    WHERE e.state = 'PUBLISHED'
+                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
+                      AND (:paid IS NULL OR e.paid = :paid)
+                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
+                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
+                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
+                    """,
             countQuery = """
-        SELECT COUNT(*)
-        FROM events e
-        WHERE e.state = 'PUBLISHED'
-          AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-          AND (:paid IS NULL OR e.paid = :paid)
-          AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-          AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-          AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-        """,
+                    SELECT COUNT(*)
+                    FROM events e
+                    WHERE e.state = 'PUBLISHED'
+                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
+                      AND (:paid IS NULL OR e.paid = :paid)
+                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
+                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
+                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
+                    """,
             nativeQuery = true
     )
     Page<Event> findAllPublishedByFiltersNoText(@Param("categoriesEmpty") boolean categoriesEmpty,
@@ -66,35 +66,35 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     @Query(
             value = """
-        SELECT e.*
-        FROM events e
-        WHERE e.state = 'PUBLISHED'
-          AND (
-                :text IS NULL
-                OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
-                OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
-              )
-          AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-          AND (:paid IS NULL OR e.paid = :paid)
-          AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-          AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-          AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-        """,
+                    SELECT e.*
+                    FROM events e
+                    WHERE e.state = 'PUBLISHED'
+                      AND (
+                            :text IS NULL
+                            OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
+                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
+                          )
+                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
+                      AND (:paid IS NULL OR e.paid = :paid)
+                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
+                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
+                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
+                    """,
             countQuery = """
-        SELECT COUNT(*)
-        FROM events e
-        WHERE e.state = 'PUBLISHED'
-          AND (
-                :text IS NULL
-                OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
-                OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
-              )
-          AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-          AND (:paid IS NULL OR e.paid = :paid)
-          AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-          AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-          AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-        """,
+                    SELECT COUNT(*)
+                    FROM events e
+                    WHERE e.state = 'PUBLISHED'
+                      AND (
+                            :text IS NULL
+                            OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
+                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
+                          )
+                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
+                      AND (:paid IS NULL OR e.paid = :paid)
+                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
+                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
+                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
+                    """,
             nativeQuery = true
     )
     Page<Event> findAllPublishedByFiltersWithText(@Param("text") String text,
@@ -105,6 +105,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                                   @Param("rangeEnd") LocalDateTime rangeEnd,
                                                   @Param("onlyAvailable") boolean onlyAvailable,
                                                   Pageable pageable);
+
     // ---------- Остальное ----------
     Collection<Event> findAllByIdIn(Collection<Long> ids);
 
