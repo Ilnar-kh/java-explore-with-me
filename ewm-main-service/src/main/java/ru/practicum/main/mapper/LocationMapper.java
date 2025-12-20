@@ -14,8 +14,8 @@ public class LocationMapper {
         }
 
         Location location = new Location();
-        location.setLat(dto.getLat().floatValue());
-        location.setLon(dto.getLon().floatValue());
+        location.setLat((double) dto.getLat().floatValue());
+        location.setLon((double) dto.getLon().floatValue());
         return location;
     }
 
