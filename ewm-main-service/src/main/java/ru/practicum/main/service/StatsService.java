@@ -1,18 +1,17 @@
 package ru.practicum.main.service;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import ru.practicum.stats.client.StatsClient;
 import ru.practicum.stats.dto.EndpointHitDto;
 import ru.practicum.stats.dto.ViewStatsDto;
+
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class StatsService {
@@ -22,7 +21,6 @@ public class StatsService {
     private final StatsClient statsClient;
     private final String appName;
 
-    // fallback: unique views per uri by ip
     private final Map<String, Set<String>> localUniqueViews = new ConcurrentHashMap<>();
 
     public StatsService(StatsClient statsClient,
@@ -46,9 +44,8 @@ public class StatsService {
         try {
             statsClient.hit(hitDto);
         } catch (Exception ex) {
-            // fallback: считаем уникальные просмотры локально
             localUniqueViews.computeIfAbsent(uri, k -> ConcurrentHashMap.newKeySet()).add(ip);
-            log.warn("Failed to send stats hit: {}", ex.getMessage());
+            log.warn("Failed to send stats hit, fallback to local unique views: {}", ex.getMessage());
         }
     }
 
@@ -58,23 +55,19 @@ public class StatsService {
         }
 
         try {
-            // ВАЖНО: unique=true — автотесты ждут уникальные просмотры по IP
             List<ViewStatsDto> stats = statsClient.getStats(START, LocalDateTime.now(), uris, true);
 
             Map<String, Long> result = new HashMap<>();
             for (ViewStatsDto stat : stats) {
                 result.put(stat.getUri(), stat.getHits());
             }
-
-            // если по какому-то uri stats-server не вернул запись — считаем 0
             for (String uri : uris) {
-                result.putIfAbsent(uri, 0L);
+                result.putIfAbsent(uri, (long) localUniqueViews.getOrDefault(uri, Set.of()).size());
             }
-
             return result;
-        } catch (Exception ex) {
-            log.warn("Failed to fetch stats: {}", ex.getMessage());
 
+        } catch (Exception ex) {
+            log.warn("Failed to fetch stats, fallback to local unique views: {}", ex.getMessage());
             Map<String, Long> res = new HashMap<>();
             for (String uri : uris) {
                 res.put(uri, (long) localUniqueViews.getOrDefault(uri, Set.of()).size());
@@ -84,11 +77,9 @@ public class StatsService {
     }
 
     private String extractIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            // берём первый IP из списка
-            int comma = xff.indexOf(',');
-            return (comma > 0 ? xff.substring(0, comma) : xff).trim();
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
         }
         return request.getRemoteAddr();
     }

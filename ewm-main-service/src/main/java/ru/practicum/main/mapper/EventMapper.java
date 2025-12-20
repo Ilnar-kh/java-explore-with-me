@@ -5,14 +5,16 @@ import ru.practicum.main.dto.EventFullDto;
 import ru.practicum.main.dto.EventShortDto;
 import ru.practicum.main.dto.NewEventDto;
 import ru.practicum.main.event.model.Event;
+import ru.practicum.main.event.model.EventState;
 import ru.practicum.main.location.model.Location;
 import ru.practicum.main.user.model.User;
 import ru.practicum.main.util.DateTimeUtils;
 
+import java.time.LocalDateTime;
+
 public final class EventMapper {
 
     private EventMapper() {
-        // utility class
     }
 
     public static Event toEntity(NewEventDto dto, Category category, User initiator, Location location) {
@@ -27,32 +29,37 @@ public final class EventMapper {
         event.setInitiator(initiator);
         event.setLocation(location);
 
-        // defaults
-        event.setPaid(dto.getPaid() != null && dto.getPaid());
+        // defaults по ТЗ
+        event.setPaid(Boolean.TRUE.equals(dto.getPaid()));
         event.setParticipantLimit(dto.getParticipantLimit() == null ? 0 : dto.getParticipantLimit());
         event.setRequestModeration(dto.getRequestModeration() == null || dto.getRequestModeration());
 
-        // safe defaults (чтобы не вылетать на null)
+        // безопасные дефолты, чтобы не ловить NPE и "undefined" в автотестах
         if (event.getConfirmedRequests() == null) {
-            event.setConfirmedRequests(0L);
+            event.setConfirmedRequests(0L); // если в Event confirmedRequests Long
         }
         if (event.getViews() == null) {
             event.setViews(0L);
+        }
+        if (event.getState() == null) {
+            event.setState(EventState.PENDING);
+        }
+        if (event.getCreatedOn() == null) {
+            event.setCreatedOn(LocalDateTime.now());
         }
 
         return event;
     }
 
     public static EventFullDto toFullDto(Event event, Long views) {
-        Long resolvedViews = (views != null)
+        long resolvedViews = (views != null)
                 ? views
                 : (event.getViews() == null ? 0L : event.getViews());
 
-        Long confirmedRequests = (event.getConfirmedRequests() == null)
+        long confirmedRequests = (event.getConfirmedRequests() == null)
                 ? 0L
                 : event.getConfirmedRequests();
 
-        // ВАЖНО: порядок аргументов ровно как в твоём EventFullDto (см. подсказку IDE)
         return new EventFullDto(
                 event.getAnnotation(),                        // String annotation
                 CategoryMapper.toDto(event.getCategory()),    // CategoryDto category
@@ -65,24 +72,23 @@ public final class EventMapper {
                 LocationMapper.toDto(event.getLocation()),    // LocationDto location
                 event.getPaid(),                              // Boolean paid
                 event.getParticipantLimit(),                  // Integer participantLimit
-                DateTimeUtils.format(event.getPublishedOn()), // String publishedOn (может быть null)
+                DateTimeUtils.format(event.getPublishedOn()), // String publishedOn
                 event.getRequestModeration(),                 // Boolean requestModeration
-                event.getState().name(),                      // String state
+                event.getState() == null ? null : event.getState().name(), // String state
                 event.getTitle(),                             // String title
                 resolvedViews                                 // Long views
         );
     }
 
     public static EventShortDto toShortDto(Event event, Long views) {
-        Long resolvedViews = (views != null)
+        long resolvedViews = (views != null)
                 ? views
                 : (event.getViews() == null ? 0L : event.getViews());
 
-        Long confirmedRequests = (event.getConfirmedRequests() == null)
+        long confirmedRequests = (event.getConfirmedRequests() == null)
                 ? 0L
                 : event.getConfirmedRequests();
 
-        // Порядок под твой EventShortDto (как в исходном варианте проекта)
         return new EventShortDto(
                 event.getAnnotation(),                        // annotation
                 CategoryMapper.toDto(event.getCategory()),    // category
