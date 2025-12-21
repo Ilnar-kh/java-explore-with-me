@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -150,8 +149,7 @@ public class EventService {
                                                HttpServletRequest request) {
         statsService.hit(request);
 
-        // ВАЖНО: если rangeStart не задан — НЕ фильтруем по дате вообще
-        LocalDateTime start = (rangeStart == null) ? null : DateTimeUtils.parse(rangeStart);
+        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
 
@@ -160,33 +158,42 @@ public class EventService {
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
         List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
 
-        Sort pageableSort;
-        if ("EVENT_DATE".equals(sort)) {
-            pageableSort = Sort.by("eventDate").ascending();
-        } else {
-            // дефолт (важно для стабильной пагинации)
-            pageableSort = Sort.by("id").ascending();
-        }
-
-        PageRequest pageRequest = PageRequest.of(from / size, size, pageableSort);
+        // ВАЖНО: для nativeQuery НЕ передаём Sort в pageable (иначе Spring допишет order by e.eventDate)
+        PageRequest pageRequest = PageRequest.of(from / size, size);
 
         List<Event> events;
         if (normText == null) {
             events = eventRepository.findAllPublishedByFiltersNoText(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
+                    categoriesEmpty,
+                    safeCategories,
+                    paid,
+                    start,
+                    end,
+                    onlyAvailable,
+                    sort,          // <-- сорт в SQL
+                    pageRequest
             ).getContent();
         } else {
             events = eventRepository.findAllPublishedByFiltersWithText(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
+                    normText,
+                    categoriesEmpty,
+                    safeCategories,
+                    paid,
+                    start,
+                    end,
+                    onlyAvailable,
+                    sort,          // <-- сорт в SQL
+                    pageRequest
             ).getContent();
         }
 
         Map<Long, Long> views = resolveViews(events);
 
         List<EventShortDto> result = events.stream()
-                .map(e -> EventMapper.toShortDto(e, views.getOrDefault(e.getId(), 0L)))
+                .map(event -> EventMapper.toShortDto(event, views.getOrDefault(event.getId(), 0L)))
                 .toList();
 
+        // VIEWS сортируем уже после получения статистики
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
