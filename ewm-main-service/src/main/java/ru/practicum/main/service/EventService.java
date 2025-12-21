@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -149,9 +150,8 @@ public class EventService {
                                                HttpServletRequest request) {
         statsService.hit(request);
 
-        LocalDateTime start = (rangeStart == null)
-                ? null
-                : DateTimeUtils.parse(rangeStart);
+        // ВАЖНО: если rangeStart не задан — НЕ фильтруем по дате вообще
+        LocalDateTime start = (rangeStart == null) ? null : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
 
@@ -160,34 +160,24 @@ public class EventService {
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
         List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
 
-        // ВАЖНО: без сортировки, иначе Spring допишет ORDER BY e.eventDate -> 500 в nativeQuery
-        PageRequest pageRequest = PageRequest.of(from / size, size);
-
-        // дефолт по ТЗ: sort = EVENT_DATE
-        String normSort = (sort == null || sort.isBlank()) ? "EVENT_DATE" : sort;
-
-        List<Event> events;
-
-        boolean orderByEventDate = "EVENT_DATE".equals(normSort);
-        boolean orderByViews = "VIEWS".equals(normSort);
-
-        if (!orderByEventDate && !orderByViews) {
-            throw new BadRequestException("Unknown sort: " + normSort);
+        Sort pageableSort;
+        if ("EVENT_DATE".equals(sort)) {
+            pageableSort = Sort.by("eventDate").ascending();
+        } else {
+            // дефолт (важно для стабильной пагинации)
+            pageableSort = Sort.by("id").ascending();
         }
 
+        PageRequest pageRequest = PageRequest.of(from / size, size, pageableSort);
+
+        List<Event> events;
         if (normText == null) {
-            events = (orderByEventDate
-                    ? eventRepository.findAllPublishedNoTextOrderByEventDate(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                    : eventRepository.findAllPublishedNoTextOrderById(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+            events = eventRepository.findAllPublishedByFiltersNoText(
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
             ).getContent();
         } else {
-            events = (orderByEventDate
-                    ? eventRepository.findAllPublishedWithTextOrderByEventDate(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                    : eventRepository.findAllPublishedWithTextOrderById(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+            events = eventRepository.findAllPublishedByFiltersWithText(
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
             ).getContent();
         }
 
@@ -197,8 +187,7 @@ public class EventService {
                 .map(e -> EventMapper.toShortDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
 
-        // Сортировка по VIEWS делается после получения просмотров
-        if (orderByViews) {
+        if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
                             b.getViews() == null ? 0 : b.getViews(),

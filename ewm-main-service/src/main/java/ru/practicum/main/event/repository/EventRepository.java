@@ -16,7 +16,7 @@ import ru.practicum.main.event.model.EventState;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-    // ---------- Admin (JPQL можно оставить) ----------
+    // ---------- Admin ----------
     @Query("""
             SELECT e
             FROM Event e
@@ -33,68 +33,22 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                       @Param("rangeEnd") LocalDateTime rangeEnd,
                                       Pageable pageable);
 
-    // ===================== PUBLIC (native) =====================
-    // ВАЖНО: Pageable должен быть БЕЗ сортировки (иначе Spring допишет order by e.eventDate -> 500)
-
-    // ---- NO TEXT, ORDER BY event_date
-    @Query(
-            value = """
-                    SELECT e.*
-                    FROM events e
-                    WHERE e.state = 'PUBLISHED'
-                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                      AND (:paid IS NULL OR e.paid = :paid)
-                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-                    ORDER BY e.event_date ASC
-                    """,
-            countQuery = """
-                    SELECT COUNT(*)
-                    FROM events e
-                    WHERE e.state = 'PUBLISHED'
-                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                      AND (:paid IS NULL OR e.paid = :paid)
-                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-                    """,
-            nativeQuery = true
-    )
-    Page<Event> findAllPublishedNoTextOrderByEventDate(@Param("categoriesEmpty") boolean categoriesEmpty,
-                                                       @Param("categories") List<Long> categories,
-                                                       @Param("paid") Boolean paid,
-                                                       @Param("rangeStart") LocalDateTime rangeStart,
-                                                       @Param("rangeEnd") LocalDateTime rangeEnd,
-                                                       @Param("onlyAvailable") boolean onlyAvailable,
-                                                       Pageable pageable);
-
-    // ---- NO TEXT, ORDER BY id
-    @Query(
-            value = """
-                    SELECT e.*
-                    FROM events e
-                    WHERE e.state = 'PUBLISHED'
-                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                      AND (:paid IS NULL OR e.paid = :paid)
-                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-                    ORDER BY e.id ASC
-                    """,
-            countQuery = """
-                    SELECT COUNT(*)
-                    FROM events e
-                    WHERE e.state = 'PUBLISHED'
-                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                      AND (:paid IS NULL OR e.paid = :paid)
-                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-                    """,
-            nativeQuery = true
-    )
-    Page<Event> findAllPublishedNoTextOrderById(@Param("categoriesEmpty") boolean categoriesEmpty,
+    // ---------- Public (JPQL, без nativeQuery — чтобы Sort/Pageable не ломал SQL) ----------
+    @Query("""
+            SELECT e
+            FROM Event e
+            WHERE e.state = ru.practicum.main.event.model.EventState.PUBLISHED
+              AND (:categoriesEmpty = true OR e.category.id IN :categories)
+              AND (:paid IS NULL OR e.paid = :paid)
+              AND (:rangeStart IS NULL OR e.eventDate >= :rangeStart)
+              AND (:rangeEnd IS NULL OR e.eventDate <= :rangeEnd)
+              AND (
+                    :onlyAvailable = false
+                    OR e.participantLimit = 0
+                    OR COALESCE(e.confirmedRequests, 0) < e.participantLimit
+                  )
+            """)
+    Page<Event> findAllPublishedByFiltersNoText(@Param("categoriesEmpty") boolean categoriesEmpty,
                                                 @Param("categories") List<Long> categories,
                                                 @Param("paid") Boolean paid,
                                                 @Param("rangeStart") LocalDateTime rangeStart,
@@ -102,86 +56,26 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                                 @Param("onlyAvailable") boolean onlyAvailable,
                                                 Pageable pageable);
 
-    // ---- WITH TEXT, ORDER BY event_date
-    @Query(
-            value = """
-                    SELECT e.*
-                    FROM events e
-                    WHERE e.state = 'PUBLISHED'
-                      AND (
-                            :text IS NULL
-                            OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
-                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
-                          )
-                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                      AND (:paid IS NULL OR e.paid = :paid)
-                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-                    ORDER BY e.event_date ASC
-                    """,
-            countQuery = """
-                    SELECT COUNT(*)
-                    FROM events e
-                    WHERE e.state = 'PUBLISHED'
-                      AND (
-                            :text IS NULL
-                            OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
-                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
-                          )
-                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                      AND (:paid IS NULL OR e.paid = :paid)
-                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-                    """,
-            nativeQuery = true
-    )
-    Page<Event> findAllPublishedWithTextOrderByEventDate(@Param("text") String text,
-                                                         @Param("categoriesEmpty") boolean categoriesEmpty,
-                                                         @Param("categories") List<Long> categories,
-                                                         @Param("paid") Boolean paid,
-                                                         @Param("rangeStart") LocalDateTime rangeStart,
-                                                         @Param("rangeEnd") LocalDateTime rangeEnd,
-                                                         @Param("onlyAvailable") boolean onlyAvailable,
-                                                         Pageable pageable);
-
-    // ---- WITH TEXT, ORDER BY id
-    @Query(
-            value = """
-                    SELECT e.*
-                    FROM events e
-                    WHERE e.state = 'PUBLISHED'
-                      AND (
-                            :text IS NULL
-                            OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
-                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
-                          )
-                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                      AND (:paid IS NULL OR e.paid = :paid)
-                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-                    ORDER BY e.id ASC
-                    """,
-            countQuery = """
-                    SELECT COUNT(*)
-                    FROM events e
-                    WHERE e.state = 'PUBLISHED'
-                      AND (
-                            :text IS NULL
-                            OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
-                            OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
-                          )
-                      AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                      AND (:paid IS NULL OR e.paid = :paid)
-                      AND e.event_date >= COALESCE(CAST(:rangeStart AS timestamp), e.event_date)
-                      AND e.event_date <= COALESCE(CAST(:rangeEnd   AS timestamp), e.event_date)
-                      AND (:onlyAvailable = false OR e.participant_limit = 0 OR e.confirmed_requests < e.participant_limit)
-                    """,
-            nativeQuery = true
-    )
-    Page<Event> findAllPublishedWithTextOrderById(@Param("text") String text,
+    @Query("""
+            SELECT e
+            FROM Event e
+            WHERE e.state = ru.practicum.main.event.model.EventState.PUBLISHED
+              AND (
+                    :text IS NULL
+                    OR LOWER(e.annotation) LIKE LOWER(CONCAT('%', :text, '%'))
+                    OR LOWER(e.description) LIKE LOWER(CONCAT('%', :text, '%'))
+                  )
+              AND (:categoriesEmpty = true OR e.category.id IN :categories)
+              AND (:paid IS NULL OR e.paid = :paid)
+              AND (:rangeStart IS NULL OR e.eventDate >= :rangeStart)
+              AND (:rangeEnd IS NULL OR e.eventDate <= :rangeEnd)
+              AND (
+                    :onlyAvailable = false
+                    OR e.participantLimit = 0
+                    OR COALESCE(e.confirmedRequests, 0) < e.participantLimit
+                  )
+            """)
+    Page<Event> findAllPublishedByFiltersWithText(@Param("text") String text,
                                                   @Param("categoriesEmpty") boolean categoriesEmpty,
                                                   @Param("categories") List<Long> categories,
                                                   @Param("paid") Boolean paid,
