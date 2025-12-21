@@ -154,15 +154,13 @@ public class EventService {
         LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
 
-        // нормализуем text: пустая строка == нет фильтра
         String normText = (text == null || text.isBlank()) ? null : text;
 
-        // categories: чтобы native IN (:categories) не развалился на пустом списке
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
         List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
 
-        Sort pageableSort = "EVENT_DATE".equals(sort) ? Sort.by("eventDate").ascending() : Sort.unsorted();
-        PageRequest pageRequest = PageRequest.of(from / size, size, pageableSort);
+        // ВАЖНО: без Sort, иначе Spring добавит "order by e.eventDate" и словишь 500 на nativeQuery
+        PageRequest pageRequest = PageRequest.of(from / size, size);
 
         List<Event> events;
         if (normText == null) {
@@ -198,11 +196,12 @@ public class EventService {
                 .map(event -> EventMapper.toShortDto(event, views.getOrDefault(event.getId(), 0L)))
                 .toList();
 
+        // sort=VIEWS сортируем уже в памяти (по ТЗ)
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
-                            b.getViews() == null ? 0 : b.getViews(),
-                            a.getViews() == null ? 0 : a.getViews()
+                            b.getViews() == null ? 0L : b.getViews(),
+                            a.getViews() == null ? 0L : a.getViews()
                     ))
                     .toList();
         }
