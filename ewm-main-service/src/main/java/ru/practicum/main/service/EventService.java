@@ -149,7 +149,9 @@ public class EventService {
                                                HttpServletRequest request) {
         statsService.hit(request);
 
-        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
+        LocalDateTime start = (rangeStart == null)
+                ? null
+                : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
 
