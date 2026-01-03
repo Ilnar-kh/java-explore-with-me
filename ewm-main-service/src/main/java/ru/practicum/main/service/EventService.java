@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -157,30 +156,33 @@ public class EventService {
 
         String normText = (text == null || text.isBlank()) ? null : text;
 
-        Sort pageableSort;
-        if ("EVENT_DATE".equals(sort)) {
-            pageableSort = Sort.by("eventDate").ascending();
+        boolean categoriesEmpty = (categories == null || categories.isEmpty());
+        List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
+
+        // ВАЖНО: Pageable БЕЗ сортировки для nativeQuery
+        PageRequest pageRequest = PageRequest.of(from / size, size);
+
+        List<Event> events;
+
+        boolean sortByEventDate = "EVENT_DATE".equals(sort);
+
+        if (normText == null) {
+            events = sortByEventDate
+                    ? eventRepository.findAllPublishedNoTextOrderByEventDate(
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
+            ).getContent()
+                    : eventRepository.findAllPublishedNoTextOrderById(
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
+            ).getContent();
         } else {
-            // дефолт: стабильная пагинация
-            pageableSort = Sort.by("id").ascending();
+            events = sortByEventDate
+                    ? eventRepository.findAllPublishedWithTextOrderByEventDate(
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
+            ).getContent()
+                    : eventRepository.findAllPublishedWithTextOrderById(
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
+            ).getContent();
         }
-
-        // VIEWS сортируем потом в Java, поэтому в БД оставляем стабильный порядок
-        if ("VIEWS".equals(sort)) {
-            pageableSort = Sort.by("id").ascending();
-        }
-
-        PageRequest pageRequest = PageRequest.of(from / size, size, pageableSort);
-
-        List<Event> events = eventRepository.findPublishedPublic(
-                normText,
-                categories,
-                paid,
-                start,
-                end,
-                onlyAvailable,
-                pageRequest
-        ).getContent();
 
         Map<Long, Long> views = resolveViews(events);
 
@@ -188,6 +190,7 @@ public class EventService {
                 .map(e -> EventMapper.toShortDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
 
+        // sort=VIEWS сортируем уже ПОСЛЕ (так и надо)
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
