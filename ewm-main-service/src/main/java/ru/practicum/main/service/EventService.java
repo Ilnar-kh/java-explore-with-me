@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -13,18 +14,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.practicum.main.category.model.Category;
 import ru.practicum.main.category.repository.CategoryRepository;
-import ru.practicum.main.dto.EventFullDto;
-import ru.practicum.main.dto.EventShortDto;
-import ru.practicum.main.dto.NewEventDto;
-import ru.practicum.main.dto.UpdateEventAdminRequest;
-import ru.practicum.main.dto.UpdateEventUserRequest;
+import ru.practicum.main.dto.*;
 import ru.practicum.main.event.model.Event;
 import ru.practicum.main.event.model.EventState;
 import ru.practicum.main.event.repository.EventRepository;
 import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.exception.ConflictException;
 import ru.practicum.main.exception.NotFoundException;
+import ru.practicum.main.mapper.CategoryMapper;
 import ru.practicum.main.mapper.EventMapper;
+import ru.practicum.main.mapper.LocationMapper;
+import ru.practicum.main.mapper.UserMapper;
 import ru.practicum.main.util.DateTimeUtils;
 import ru.practicum.main.user.model.User;
 
@@ -137,16 +137,16 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public List<EventShortDto> getEventsPublic(String text,
-                                               List<Long> categories,
-                                               Boolean paid,
-                                               String rangeStart,
-                                               String rangeEnd,
-                                               boolean onlyAvailable,
-                                               String sort,
-                                               int from,
-                                               int size,
-                                               HttpServletRequest request) {
+    public List<EventFullDto> getEventsPublicFull(String text,
+                                                  List<Long> categories,
+                                                  Boolean paid,
+                                                  String rangeStart,
+                                                  String rangeEnd,
+                                                  boolean onlyAvailable,
+                                                  String sort,
+                                                  int from,
+                                                  int size,
+                                                  HttpServletRequest request) {
 
         statsService.hit(request);
 
@@ -159,38 +159,133 @@ public class EventService {
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
         List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
 
-        // ВАЖНО: Pageable БЕЗ сортировки для nativeQuery
         PageRequest pageRequest = PageRequest.of(from / size, size);
+        boolean sortByEventDate = "EVENT_DATE".equals(sort);
 
         List<Event> events;
+        if (normText == null) {
+            events = (sortByEventDate
+                    ? eventRepository.findAllPublishedNoTextOrderByEventDate(
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                    : eventRepository.findAllPublishedNoTextOrderById(
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+            ).getContent();
+        } else {
+            events = (sortByEventDate
+                    ? eventRepository.findAllPublishedWithTextOrderByEventDate(
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                    : eventRepository.findAllPublishedWithTextOrderById(
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+            ).getContent();
+        }
+
+        if (events == null || events.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<Long, Long> views = resolveViews(events);
+
+        List<EventFullDto> result = new ArrayList<>();
+        for (Event event : events) {
+            try {
+                EventFullDto dto = EventMapper.toFullDto(event, views.getOrDefault(event.getId(), 0L));
+                result.add(dto);
+            } catch (Exception e) {
+
+                EventFullDto defaultDto = createDefaultEventFullDto(event, views.getOrDefault(event.getId(), 0L));
+                result.add(defaultDto);
+            }
+        }
+
+        if ("VIEWS".equals(sort)) {
+            result.sort((a, b) -> {
+                Long viewsA = a.getViews() != null ? a.getViews() : 0L;
+                Long viewsB = b.getViews() != null ? b.getViews() : 0L;
+                return viewsB.compareTo(viewsA); // Сортировка по убыванию
+            });
+        }
+
+        return result;
+    }
+
+    private EventFullDto createDefaultEventFullDto(Event event, Long views) {
+        if (event == null) {
+            return null;
+        }
+
+        try {
+            return EventMapper.toFullDto(event, views);
+        } catch (Exception e) {
+            return new EventFullDto(
+                    event.getAnnotation() != null ? event.getAnnotation() : "",
+                    event.getCategory() != null ? CategoryMapper.toDto(event.getCategory()) : new CategoryDto(0L, "Unknown"),
+                    event.getConfirmedRequests() != null ? event.getConfirmedRequests() : 0L,
+                    event.getCreatedOn() != null ? DateTimeUtils.format(event.getCreatedOn()) : DateTimeUtils.format(LocalDateTime.now()),
+                    event.getDescription() != null ? event.getDescription() : "",
+                    event.getEventDate() != null ? DateTimeUtils.format(event.getEventDate()) : DateTimeUtils.format(LocalDateTime.now()),
+                    event.getId() != null ? event.getId() : 0L,
+                    event.getInitiator() != null ? UserMapper.toShortDto(event.getInitiator()) : new UserShortDto(0L, "Unknown"),
+                    event.getLocation() != null ? LocationMapper.toDto(event.getLocation()) : new LocationDto(0.0, 0.0),
+                    event.getPaid() != null ? event.getPaid() : false,
+                    event.getParticipantLimit() != null ? event.getParticipantLimit() : 0,
+                    event.getPublishedOn() != null ? DateTimeUtils.format(event.getPublishedOn()) : null,
+                    event.getRequestModeration() != null ? event.getRequestModeration() : true,
+                    event.getState() != null ? event.getState().name() : "PENDING",
+                    event.getTitle() != null ? event.getTitle() : "",
+                    views != null ? views : 0L
+            );
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventShortDto> getEventsPublic(String text,
+                                               List<Long> categories,
+                                               Boolean paid,
+                                               String rangeStart,
+                                               String rangeEnd,
+                                               boolean onlyAvailable,
+                                               String sort,
+                                               int from,
+                                               int size,
+                                               HttpServletRequest request) {
+        statsService.hit(request);
+
+        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
+        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
+        validateRange(start, end);
+
+        String normText = (text == null || text.isBlank()) ? null : text;
+
+        boolean categoriesEmpty = (categories == null || categories.isEmpty());
+        List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
+
+        PageRequest pageRequest = PageRequest.of(from / size, size);
 
         boolean sortByEventDate = "EVENT_DATE".equals(sort);
 
+        List<Event> events;
         if (normText == null) {
-            events = sortByEventDate
+            events = (sortByEventDate
                     ? eventRepository.findAllPublishedNoTextOrderByEventDate(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
-            ).getContent()
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
                     : eventRepository.findAllPublishedNoTextOrderById(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
             ).getContent();
         } else {
-            events = sortByEventDate
+            events = (sortByEventDate
                     ? eventRepository.findAllPublishedWithTextOrderByEventDate(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
-            ).getContent()
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
                     : eventRepository.findAllPublishedWithTextOrderById(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
             ).getContent();
         }
 
         Map<Long, Long> views = resolveViews(events);
 
         List<EventShortDto> result = events.stream()
-                .map(e -> EventMapper.toShortDto(e, views.getOrDefault(e.getId(), 0L)))
+                .map(event -> EventMapper.toShortDto(event, views.getOrDefault(event.getId(), 0L)))
                 .toList();
 
-        // sort=VIEWS сортируем уже ПОСЛЕ (так и надо)
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(

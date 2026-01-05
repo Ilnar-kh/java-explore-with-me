@@ -16,7 +16,6 @@ import ru.practicum.main.event.model.EventState;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-    // ---------- Admin (JPQL) ----------
     @Query("""
             SELECT e
             FROM Event e
@@ -33,7 +32,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                       @Param("rangeEnd") LocalDateTime rangeEnd,
                                       Pageable pageable);
 
-    // ---------- Public / NO TEXT / ORDER BY ID ----------
     @Query(
             value = """
                     SELECT e.*
@@ -66,7 +64,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                                 @Param("onlyAvailable") boolean onlyAvailable,
                                                 Pageable pageable);
 
-    // ---------- Public / NO TEXT / ORDER BY EVENT_DATE ----------
     @Query(
             value = """
                     SELECT e.*
@@ -99,7 +96,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                                        @Param("onlyAvailable") boolean onlyAvailable,
                                                        Pageable pageable);
 
-    // ---------- Public / WITH TEXT / ORDER BY ID ----------
     @Query(
             value = """
                     SELECT e.*
@@ -143,7 +139,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                                   @Param("onlyAvailable") boolean onlyAvailable,
                                                   Pageable pageable);
 
-    // ---------- Public / WITH TEXT / ORDER BY EVENT_DATE ----------
     @Query(
             value = """
                     SELECT e.*
@@ -187,7 +182,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                                                          @Param("onlyAvailable") boolean onlyAvailable,
                                                          Pageable pageable);
 
-    // ---------- Остальное ----------
     Collection<Event> findAllByIdIn(Collection<Long> ids);
 
     Page<Event> findAllByInitiatorId(Long initiatorId, Pageable pageable);

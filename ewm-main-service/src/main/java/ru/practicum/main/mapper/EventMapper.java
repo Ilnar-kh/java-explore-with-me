@@ -29,14 +29,12 @@ public final class EventMapper {
         event.setInitiator(initiator);
         event.setLocation(location);
 
-        // defaults по ТЗ
         event.setPaid(Boolean.TRUE.equals(dto.getPaid()));
         event.setParticipantLimit(dto.getParticipantLimit() == null ? 0 : dto.getParticipantLimit());
         event.setRequestModeration(dto.getRequestModeration() == null || dto.getRequestModeration());
 
-        // безопасные дефолты, чтобы не ловить NPE и "undefined" в автотестах
         if (event.getConfirmedRequests() == null) {
-            event.setConfirmedRequests(0L); // если в Event confirmedRequests Long
+            event.setConfirmedRequests(0L);
         }
         if (event.getViews() == null) {
             event.setViews(0L);

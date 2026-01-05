@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.practicum.main.dto.EventFullDto;
-import ru.practicum.main.dto.EventShortDto;
 import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.service.EventService;
 
@@ -27,7 +26,7 @@ public class PublicEventController {
     }
 
     @GetMapping
-    public ResponseEntity<List<EventShortDto>> getEvents(
+    public ResponseEntity<List<EventFullDto>> getEvents(
             @RequestParam(required = false) String text,
             @RequestParam(required = false) List<Long> categories,
             @RequestParam(required = false) Boolean paid,
@@ -41,7 +40,7 @@ public class PublicEventController {
         if (from < 0 || size <= 0) throw new BadRequestException("Invalid pagination");
 
         return ResponseEntity.ok(
-                eventService.getEventsPublic(
+                eventService.getEventsPublicFull(
                         text, categories, paid, rangeStart, rangeEnd,
                         onlyAvailable, sort, from, size, request
                 )
