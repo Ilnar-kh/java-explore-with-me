@@ -54,20 +54,31 @@ public class EventService {
                                              String rangeEnd,
                                              int from,
                                              int size) {
-        List<EventState> stateEnums = parseStates(states);
+        if (from < 0) throw new BadRequestException("from must be >= 0");
+        if (size <= 0) throw new BadRequestException("size must be > 0");
 
-        LocalDateTime start = rangeStart == null ? null : DateTimeUtils.parse(rangeStart);
-        LocalDateTime end = rangeEnd == null ? null : DateTimeUtils.parse(rangeEnd);
+        LocalDateTime start = (rangeStart == null) ? null : DateTimeUtils.parse(rangeStart);
+        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
+
+        List<EventState> stateEnums = parseStates(states);
+        if (stateEnums == null || stateEnums.isEmpty()) {
+            stateEnums = List.of(EventState.values());
+        }
+
+        List<Long> safeUsers = (users == null || users.isEmpty()) ? List.of(-1L) : users;
+        List<Long> safeCategories = (categories == null || categories.isEmpty()) ? List.of(-1L) : categories;
 
         PageRequest pageRequest = PageRequest.of(from / size, size);
 
         List<Event> events = eventRepository
-                .findAllByAdminFilters(users, stateEnums, categories, start, end, pageRequest)
+                .findAllByAdminFilters(safeUsers, stateEnums, safeCategories, start, end, pageRequest)
                 .getContent();
 
+        Map<Long, Long> views = resolveViews(events);
+
         return events.stream()
-                .map(event -> EventMapper.toFullDto(event, event.getViews()))
+                .map(event -> EventMapper.toFullDto(event, views.getOrDefault(event.getId(), 0L)))
                 .toList();
     }
 
@@ -144,110 +155,20 @@ public class EventService {
                                                   int from,
                                                   int size,
                                                   HttpServletRequest request) {
-
+        // статистика не должна ломать выдачу
         try {
             statsService.hit(request);
-        } catch (Exception e) {
-            // Игнорируем ошибки статистики, главное - вернуть события
+        } catch (Exception ignored) {
         }
 
-        LocalDateTime start;
-        LocalDateTime end;
+        if (from < 0) throw new BadRequestException("from must be >= 0");
+        if (size <= 0) throw new BadRequestException("size must be > 0");
 
-        try {
-            start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
-            end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
-            validateRange(start, end);
-        } catch (Exception e) {
-            // Если ошибка парсинга дат - используем дефолты
-            start = LocalDateTime.now();
-            end = null;
+        if (sort != null && !sort.equals("EVENT_DATE") && !sort.equals("VIEWS")) {
+            throw new BadRequestException("Unknown sort: " + sort);
         }
 
-        String normText = (text == null || text.isBlank()) ? null : text;
-
-        boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        List<Long> safeCategories = categoriesEmpty ? new ArrayList<>() : categories;
-        PageRequest pageRequest;
-        try {
-            pageRequest = PageRequest.of(from / size, size);
-        } catch (Exception e) {
-            pageRequest = PageRequest.of(0, 10); // дефолтные значения
-        }
-
-        boolean sortByEventDate = "EVENT_DATE".equals(sort);
-
-        List<Event> events;
-        try {
-            if (normText == null) {
-                events = (sortByEventDate
-                        ? eventRepository.findAllPublishedNoTextOrderByEventDate(
-                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                        : eventRepository.findAllPublishedNoTextOrderById(
-                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                ).getContent();
-            } else {
-                events = (sortByEventDate
-                        ? eventRepository.findAllPublishedWithTextOrderByEventDate(
-                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                        : eventRepository.findAllPublishedWithTextOrderById(
-                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                ).getContent();
-            }
-        } catch (Exception e) {
-            // Если ошибка в репозитории - возвращаем пустой список
-            events = new ArrayList<>();
-        }
-
-        // ГАРАНТИРУЕМ, что events не null
-        if (events == null) {
-            events = new ArrayList<>();
-        }
-
-        // ГАРАНТИРУЕМ, что результат не null
-        if (events.isEmpty()) {
-            return new ArrayList<>(); // Пустой список - это OK
-        }
-
-        Map<Long, Long> views = resolveViews(events);
-
-        List<EventFullDto> result = new ArrayList<>();
-        for (Event event : events) {
-            try {
-                EventFullDto dto = EventMapper.toFullDto(event, views.getOrDefault(event.getId(), 0L));
-                if (dto != null) {
-                    result.add(dto);
-                }
-            } catch (Exception e) {
-                // Пропускаем проблемные события
-                continue;
-            }
-        }
-
-        if ("VIEWS".equals(sort)) {
-            result.sort((a, b) -> {
-                Long viewsA = a.getViews() != null ? a.getViews() : 0L;
-                Long viewsB = b.getViews() != null ? b.getViews() : 0L;
-                return viewsB.compareTo(viewsA);
-            });
-        }
-
-        return result;
-    }
-
-    @Transactional(readOnly = true)
-    public List<EventShortDto> getEventsPublic(String text,
-                                               List<Long> categories,
-                                               Boolean paid,
-                                               String rangeStart,
-                                               String rangeEnd,
-                                               boolean onlyAvailable,
-                                               String sort,
-                                               int from,
-                                               int size,
-                                               HttpServletRequest request) {
-        statsService.hit(request);
-
+        // ВАЖНО: никаких try/catch — неверные даты должны давать 400
         LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
@@ -258,7 +179,6 @@ public class EventService {
         List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
 
         PageRequest pageRequest = PageRequest.of(from / size, size);
-
         boolean sortByEventDate = "EVENT_DATE".equals(sort);
 
         List<Event> events;
@@ -278,10 +198,89 @@ public class EventService {
             ).getContent();
         }
 
+        if (events == null || events.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<Long, Long> views = resolveViews(events);
+
+        List<EventFullDto> result = events.stream()
+                .map(e -> EventMapper.toFullDto(e, views.getOrDefault(e.getId(), 0L)))
+                .toList();
+
+        if ("VIEWS".equals(sort)) {
+            result = result.stream()
+                    .sorted((a, b) -> Long.compare(
+                            b.getViews() == null ? 0 : b.getViews(),
+                            a.getViews() == null ? 0 : a.getViews()
+                    ))
+                    .toList();
+        }
+
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public List<EventShortDto> getEventsPublic(String text,
+                                               List<Long> categories,
+                                               Boolean paid,
+                                               String rangeStart,
+                                               String rangeEnd,
+                                               boolean onlyAvailable,
+                                               String sort,
+                                               int from,
+                                               int size,
+                                               HttpServletRequest request) {
+        try {
+            statsService.hit(request);
+        } catch (Exception ignored) {
+        }
+
+        if (from < 0) throw new BadRequestException("from must be >= 0");
+        if (size <= 0) throw new BadRequestException("size must be > 0");
+
+        if (sort != null && !sort.equals("EVENT_DATE") && !sort.equals("VIEWS")) {
+            throw new BadRequestException("Unknown sort: " + sort);
+        }
+
+        // Строгая валидация дат
+        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
+        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
+        validateRange(start, end);
+
+        String normText = (text == null || text.isBlank()) ? null : text;
+
+        boolean categoriesEmpty = (categories == null || categories.isEmpty());
+        List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
+
+        PageRequest pageRequest = PageRequest.of(from / size, size);
+        boolean sortByEventDate = "EVENT_DATE".equals(sort);
+
+        List<Event> events;
+        if (normText == null) {
+            events = (sortByEventDate
+                    ? eventRepository.findAllPublishedNoTextOrderByEventDate(
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                    : eventRepository.findAllPublishedNoTextOrderById(
+                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+            ).getContent();
+        } else {
+            events = (sortByEventDate
+                    ? eventRepository.findAllPublishedWithTextOrderByEventDate(
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                    : eventRepository.findAllPublishedWithTextOrderById(
+                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+            ).getContent();
+        }
+
+        if (events == null || events.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         Map<Long, Long> views = resolveViews(events);
 
         List<EventShortDto> result = events.stream()
-                .map(event -> EventMapper.toShortDto(event, views.getOrDefault(event.getId(), 0L)))
+                .map(e -> EventMapper.toShortDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
 
         if ("VIEWS".equals(sort)) {

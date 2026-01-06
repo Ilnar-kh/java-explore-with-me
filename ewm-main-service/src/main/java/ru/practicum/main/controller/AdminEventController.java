@@ -1,9 +1,12 @@
 package ru.practicum.main.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
+
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,7 +19,7 @@ import ru.practicum.main.dto.EventFullDto;
 import ru.practicum.main.dto.UpdateEventAdminRequest;
 import ru.practicum.main.service.EventService;
 
-@Valid
+@Validated
 @RestController
 @RequestMapping("/admin/events")
 public class AdminEventController {
@@ -34,27 +37,19 @@ public class AdminEventController {
             @RequestParam(required = false) List<Long> categories,
             @RequestParam(required = false) String rangeStart,
             @RequestParam(required = false) String rangeEnd,
-            @RequestParam(defaultValue = "0") Integer from,
-            @RequestParam(defaultValue = "10") Integer size) {
-
+            @RequestParam(defaultValue = "0") @Min(0) Integer from,
+            @RequestParam(defaultValue = "10") @Min(1) Integer size
+    ) {
         return ResponseEntity.ok(
-                eventService.getEventsAdmin(
-                        users,
-                        states,
-                        categories,
-                        rangeStart,
-                        rangeEnd,
-                        from,
-                        size
-                )
+                eventService.getEventsAdmin(users, states, categories, rangeStart, rangeEnd, from, size)
         );
     }
 
     @PatchMapping("/{eventId}")
     public ResponseEntity<EventFullDto> updateEvent(
             @PathVariable Long eventId,
-            @Valid @RequestBody UpdateEventAdminRequest dto) {
-
+            @Valid @RequestBody UpdateEventAdminRequest dto
+    ) {
         return ResponseEntity.ok(eventService.updateEventAdmin(eventId, dto));
     }
 }
