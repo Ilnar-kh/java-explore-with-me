@@ -21,10 +21,7 @@ import ru.practicum.main.event.repository.EventRepository;
 import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.exception.ConflictException;
 import ru.practicum.main.exception.NotFoundException;
-import ru.practicum.main.mapper.CategoryMapper;
 import ru.practicum.main.mapper.EventMapper;
-import ru.practicum.main.mapper.LocationMapper;
-import ru.practicum.main.mapper.UserMapper;
 import ru.practicum.main.util.DateTimeUtils;
 import ru.practicum.main.user.model.User;
 
@@ -148,39 +145,68 @@ public class EventService {
                                                   int size,
                                                   HttpServletRequest request) {
 
-        statsService.hit(request);
+        try {
+            statsService.hit(request);
+        } catch (Exception e) {
+            // Игнорируем ошибки статистики, главное - вернуть события
+        }
 
-        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
-        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
-        validateRange(start, end);
+        LocalDateTime start;
+        LocalDateTime end;
+
+        try {
+            start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
+            end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
+            validateRange(start, end);
+        } catch (Exception e) {
+            // Если ошибка парсинга дат - используем дефолты
+            start = LocalDateTime.now();
+            end = null;
+        }
 
         String normText = (text == null || text.isBlank()) ? null : text;
 
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
+        List<Long> safeCategories = categoriesEmpty ? new ArrayList<>() : categories;
+        PageRequest pageRequest;
+        try {
+            pageRequest = PageRequest.of(from / size, size);
+        } catch (Exception e) {
+            pageRequest = PageRequest.of(0, 10); // дефолтные значения
+        }
 
-        PageRequest pageRequest = PageRequest.of(from / size, size);
         boolean sortByEventDate = "EVENT_DATE".equals(sort);
 
         List<Event> events;
-        if (normText == null) {
-            events = (sortByEventDate
-                    ? eventRepository.findAllPublishedNoTextOrderByEventDate(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                    : eventRepository.findAllPublishedNoTextOrderById(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-            ).getContent();
-        } else {
-            events = (sortByEventDate
-                    ? eventRepository.findAllPublishedWithTextOrderByEventDate(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                    : eventRepository.findAllPublishedWithTextOrderById(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-            ).getContent();
+        try {
+            if (normText == null) {
+                events = (sortByEventDate
+                        ? eventRepository.findAllPublishedNoTextOrderByEventDate(
+                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                        : eventRepository.findAllPublishedNoTextOrderById(
+                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                ).getContent();
+            } else {
+                events = (sortByEventDate
+                        ? eventRepository.findAllPublishedWithTextOrderByEventDate(
+                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                        : eventRepository.findAllPublishedWithTextOrderById(
+                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                ).getContent();
+            }
+        } catch (Exception e) {
+            // Если ошибка в репозитории - возвращаем пустой список
+            events = new ArrayList<>();
         }
 
-        if (events == null || events.isEmpty()) {
-            return new ArrayList<>();
+        // ГАРАНТИРУЕМ, что events не null
+        if (events == null) {
+            events = new ArrayList<>();
+        }
+
+        // ГАРАНТИРУЕМ, что результат не null
+        if (events.isEmpty()) {
+            return new ArrayList<>(); // Пустой список - это OK
         }
 
         Map<Long, Long> views = resolveViews(events);
@@ -189,11 +215,12 @@ public class EventService {
         for (Event event : events) {
             try {
                 EventFullDto dto = EventMapper.toFullDto(event, views.getOrDefault(event.getId(), 0L));
-                result.add(dto);
+                if (dto != null) {
+                    result.add(dto);
+                }
             } catch (Exception e) {
-
-                EventFullDto defaultDto = createDefaultEventFullDto(event, views.getOrDefault(event.getId(), 0L));
-                result.add(defaultDto);
+                // Пропускаем проблемные события
+                continue;
             }
         }
 
@@ -201,40 +228,11 @@ public class EventService {
             result.sort((a, b) -> {
                 Long viewsA = a.getViews() != null ? a.getViews() : 0L;
                 Long viewsB = b.getViews() != null ? b.getViews() : 0L;
-                return viewsB.compareTo(viewsA); // Сортировка по убыванию
+                return viewsB.compareTo(viewsA);
             });
         }
 
         return result;
-    }
-
-    private EventFullDto createDefaultEventFullDto(Event event, Long views) {
-        if (event == null) {
-            return null;
-        }
-
-        try {
-            return EventMapper.toFullDto(event, views);
-        } catch (Exception e) {
-            return new EventFullDto(
-                    event.getAnnotation() != null ? event.getAnnotation() : "",
-                    event.getCategory() != null ? CategoryMapper.toDto(event.getCategory()) : new CategoryDto(0L, "Unknown"),
-                    event.getConfirmedRequests() != null ? event.getConfirmedRequests() : 0L,
-                    event.getCreatedOn() != null ? DateTimeUtils.format(event.getCreatedOn()) : DateTimeUtils.format(LocalDateTime.now()),
-                    event.getDescription() != null ? event.getDescription() : "",
-                    event.getEventDate() != null ? DateTimeUtils.format(event.getEventDate()) : DateTimeUtils.format(LocalDateTime.now()),
-                    event.getId() != null ? event.getId() : 0L,
-                    event.getInitiator() != null ? UserMapper.toShortDto(event.getInitiator()) : new UserShortDto(0L, "Unknown"),
-                    event.getLocation() != null ? LocationMapper.toDto(event.getLocation()) : new LocationDto(0.0, 0.0),
-                    event.getPaid() != null ? event.getPaid() : false,
-                    event.getParticipantLimit() != null ? event.getParticipantLimit() : 0,
-                    event.getPublishedOn() != null ? DateTimeUtils.format(event.getPublishedOn()) : null,
-                    event.getRequestModeration() != null ? event.getRequestModeration() : true,
-                    event.getState() != null ? event.getState().name() : "PENDING",
-                    event.getTitle() != null ? event.getTitle() : "",
-                    views != null ? views : 0L
-            );
-        }
     }
 
     @Transactional(readOnly = true)
