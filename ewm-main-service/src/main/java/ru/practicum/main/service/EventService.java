@@ -54,31 +54,29 @@ public class EventService {
                                              String rangeEnd,
                                              int from,
                                              int size) {
-        if (from < 0) throw new BadRequestException("from must be >= 0");
-        if (size <= 0) throw new BadRequestException("size must be > 0");
+
+        if (from < 0 || size <= 0) {
+            throw new BadRequestException("Invalid pagination");
+        }
+
+        users = (users == null || users.isEmpty()) ? null : users;
+        categories = (categories == null || categories.isEmpty()) ? null : categories;
+
+        List<EventState> stateEnums = parseStates(states);
+        stateEnums = (stateEnums == null || stateEnums.isEmpty()) ? null : stateEnums;
 
         LocalDateTime start = (rangeStart == null) ? null : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
 
-        List<EventState> stateEnums = parseStates(states);
-        if (stateEnums == null || stateEnums.isEmpty()) {
-            stateEnums = List.of(EventState.values());
-        }
-
-        List<Long> safeUsers = (users == null || users.isEmpty()) ? List.of(-1L) : users;
-        List<Long> safeCategories = (categories == null || categories.isEmpty()) ? List.of(-1L) : categories;
-
         PageRequest pageRequest = PageRequest.of(from / size, size);
 
         List<Event> events = eventRepository
-                .findAllByAdminFilters(safeUsers, stateEnums, safeCategories, start, end, pageRequest)
+                .findAllByAdminFilters(users, stateEnums, categories, start, end, pageRequest)
                 .getContent();
 
-        Map<Long, Long> views = resolveViews(events);
-
         return events.stream()
-                .map(event -> EventMapper.toFullDto(event, views.getOrDefault(event.getId(), 0L)))
+                .map(e -> EventMapper.toFullDto(e, e.getViews()))
                 .toList();
     }
 
@@ -462,7 +460,7 @@ public class EventService {
     }
 
     private List<EventState> parseStates(List<String> states) {
-        if (states == null) {
+        if (states == null || states.isEmpty()) {
             return null;
         }
         try {

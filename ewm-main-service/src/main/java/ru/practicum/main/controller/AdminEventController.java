@@ -1,7 +1,6 @@
 package ru.practicum.main.controller;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
 
 import java.util.List;
 
@@ -17,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ru.practicum.main.dto.EventFullDto;
 import ru.practicum.main.dto.UpdateEventAdminRequest;
+import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.service.EventService;
 
 @Validated
@@ -37,9 +37,13 @@ public class AdminEventController {
             @RequestParam(required = false) List<Long> categories,
             @RequestParam(required = false) String rangeStart,
             @RequestParam(required = false) String rangeEnd,
-            @RequestParam(defaultValue = "0") @Min(0) Integer from,
-            @RequestParam(defaultValue = "10") @Min(1) Integer size
-    ) {
+            @RequestParam(defaultValue = "0") Integer from,
+            @RequestParam(defaultValue = "10") Integer size) {
+
+        if (from < 0 || size <= 0) {
+            throw new BadRequestException("Invalid pagination");
+        }
+
         return ResponseEntity.ok(
                 eventService.getEventsAdmin(users, states, categories, rangeStart, rangeEnd, from, size)
         );

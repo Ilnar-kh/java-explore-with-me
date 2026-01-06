@@ -17,14 +17,14 @@ import ru.practicum.main.event.model.EventState;
 public interface EventRepository extends JpaRepository<Event, Long> {
 
     @Query("""
-            SELECT e
-            FROM Event e
-            WHERE (:#{#users == null or #users.isEmpty()} = true OR e.initiator.id IN :users)
-              AND (:#{#states == null or #states.isEmpty()} = true OR e.state IN :states)
-              AND (:#{#categories == null or #categories.isEmpty()} = true OR e.category.id IN :categories)
-              AND (:rangeStart IS NULL OR e.eventDate >= :rangeStart)
-              AND (:rangeEnd IS NULL OR e.eventDate <= :rangeEnd)
-            """)
+        SELECT e
+        FROM Event e
+        WHERE (:users IS NULL OR e.initiator.id IN :users)
+          AND (:states IS NULL OR e.state IN :states)
+          AND (:categories IS NULL OR e.category.id IN :categories)
+          AND (:rangeStart IS NULL OR e.eventDate >= :rangeStart)
+          AND (:rangeEnd IS NULL OR e.eventDate <= :rangeEnd)
+        """)
     Page<Event> findAllByAdminFilters(@Param("users") List<Long> users,
                                       @Param("states") List<EventState> states,
                                       @Param("categories") List<Long> categories,
