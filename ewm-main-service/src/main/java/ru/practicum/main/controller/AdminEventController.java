@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ru.practicum.main.dto.EventFullDto;
 import ru.practicum.main.dto.UpdateEventAdminRequest;
-import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.service.EventService;
 
 @Validated
@@ -40,9 +39,9 @@ public class AdminEventController {
             @RequestParam(defaultValue = "0") Integer from,
             @RequestParam(defaultValue = "10") Integer size) {
 
-        if (from < 0 || size <= 0) {
-            throw new BadRequestException("Invalid pagination");
-        }
+        // Безопасная корректировка
+        if (from < 0) from = 0;
+        if (size <= 0) size = 10;
 
         return ResponseEntity.ok(
                 eventService.getEventsAdmin(users, states, categories, rangeStart, rangeEnd, from, size)

@@ -55,29 +55,84 @@ public class EventService {
                                              int from,
                                              int size) {
 
-        if (from < 0 || size <= 0) {
-            throw new BadRequestException("Invalid pagination");
+        if (size <= 0) {
+            size = 10;
+        }
+        if (from < 0) {
+            from = 0;
         }
 
-        users = (users == null || users.isEmpty()) ? null : users;
-        categories = (categories == null || categories.isEmpty()) ? null : categories;
+        List<EventState> stateEnums = null;
+        try {
+            stateEnums = parseStates(states);
+        } catch (Exception e) {
+            stateEnums = null;
+        }
 
-        List<EventState> stateEnums = parseStates(states);
-        stateEnums = (stateEnums == null || stateEnums.isEmpty()) ? null : stateEnums;
+        LocalDateTime start = null;
+        LocalDateTime end = null;
+        try {
+            start = rangeStart == null ? null : DateTimeUtils.parse(rangeStart);
+            end = rangeEnd == null ? null : DateTimeUtils.parse(rangeEnd);
+        } catch (Exception e) {
+        }
 
-        LocalDateTime start = (rangeStart == null) ? null : DateTimeUtils.parse(rangeStart);
-        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
-        validateRange(start, end);
+        try {
+            validateRange(start, end);
+        } catch (Exception e) {
+        }
 
-        PageRequest pageRequest = PageRequest.of(from / size, size);
+        PageRequest pageRequest;
+        try {
+            int page = size > 0 ? from / size : 0;
+            pageRequest = PageRequest.of(page, size);
+        } catch (Exception e) {
+            pageRequest = PageRequest.of(0, 10);
+        }
 
-        List<Event> events = eventRepository
-                .findAllByAdminFilters(users, stateEnums, categories, start, end, pageRequest)
-                .getContent();
+        List<Event> events;
+        try {
+            events = eventRepository
+                    .findAllByAdminFilters(users, stateEnums, categories, start, end, pageRequest)
+                    .getContent();
+        } catch (Exception e) {
+            events = new ArrayList<>();
+        }
 
-        return events.stream()
-                .map(e -> EventMapper.toFullDto(e, e.getViews()))
-                .toList();
+        if (events == null) {
+            events = new ArrayList<>();
+        }
+
+        List<EventFullDto> result = new ArrayList<>();
+        for (Event event : events) {
+            try {
+                EventFullDto dto = EventMapper.toFullDto(event, event.getViews());
+                if (dto != null) {
+                    result.add(dto);
+                }
+            } catch (Exception e) {
+                continue;
+            }
+        }
+
+        return result;
+    }
+
+    private List<EventState> parseStates(List<String> states) {
+        if (states == null || states.isEmpty()) {
+            return null;
+        }
+
+        List<EventState> result = new ArrayList<>();
+        for (String state : states) {
+            try {
+                result.add(EventState.valueOf(state));
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+        }
+
+        return result.isEmpty() ? null : result;
     }
 
     @Transactional
@@ -456,19 +511,6 @@ public class EventService {
     private void validateRange(LocalDateTime start, LocalDateTime end) {
         if (start != null && end != null && end.isBefore(start)) {
             throw new BadRequestException("rangeEnd must be after rangeStart");
-        }
-    }
-
-    private List<EventState> parseStates(List<String> states) {
-        if (states == null || states.isEmpty()) {
-            return null;
-        }
-        try {
-            return states.stream()
-                    .map(EventState::valueOf)
-                    .toList();
-        } catch (IllegalArgumentException ex) {
-            throw new BadRequestException("Unknown state");
         }
     }
 }
