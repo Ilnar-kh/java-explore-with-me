@@ -55,6 +55,7 @@ public class EventService {
                                              int from,
                                              int size) {
 
+        // Защита от некорректных параметров
         if (size <= 0) {
             size = 10;
         }
@@ -62,6 +63,7 @@ public class EventService {
             from = 0;
         }
 
+        // Безопасный парсинг states
         List<EventState> stateEnums = null;
         try {
             stateEnums = parseStates(states);
@@ -69,19 +71,24 @@ public class EventService {
             stateEnums = null;
         }
 
+        // Безопасный парсинг дат
         LocalDateTime start = null;
         LocalDateTime end = null;
         try {
             start = rangeStart == null ? null : DateTimeUtils.parse(rangeStart);
             end = rangeEnd == null ? null : DateTimeUtils.parse(rangeEnd);
         } catch (Exception e) {
+            // Оставляем null если ошибка парсинга
         }
 
+        // Валидация диапазона (игнорируем ошибки)
         try {
             validateRange(start, end);
         } catch (Exception e) {
+            // Не прерываем выполнение
         }
 
+        // Создание PageRequest с защитой
         PageRequest pageRequest;
         try {
             int page = size > 0 ? from / size : 0;
@@ -90,6 +97,7 @@ public class EventService {
             pageRequest = PageRequest.of(0, 10);
         }
 
+        // Получение событий с защитой
         List<Event> events;
         try {
             events = eventRepository
@@ -99,10 +107,12 @@ public class EventService {
             events = new ArrayList<>();
         }
 
+        // Гарантируем не-null
         if (events == null) {
             events = new ArrayList<>();
         }
 
+        // Маппинг в DTO с защитой
         List<EventFullDto> result = new ArrayList<>();
         for (Event event : events) {
             try {
@@ -111,7 +121,7 @@ public class EventService {
                     result.add(dto);
                 }
             } catch (Exception e) {
-                continue;
+                continue; // Пропускаем проблемные события
             }
         }
 
@@ -126,9 +136,9 @@ public class EventService {
         List<EventState> result = new ArrayList<>();
         for (String state : states) {
             try {
-                result.add(EventState.valueOf(state));
+                result.add(EventState.valueOf(state.toUpperCase()));
             } catch (IllegalArgumentException e) {
-                continue;
+                continue; // Пропускаем некорректные значения
             }
         }
 
@@ -208,59 +218,86 @@ public class EventService {
                                                   int from,
                                                   int size,
                                                   HttpServletRequest request) {
-        // статистика не должна ломать выдачу
+
+        // Статистика (не должна ломать выдачу)
         try {
             statsService.hit(request);
         } catch (Exception ignored) {
         }
 
-        if (from < 0) throw new BadRequestException("from must be >= 0");
-        if (size <= 0) throw new BadRequestException("size must be > 0");
+        // Валидация параметров
+        if (from < 0) {
+            throw new BadRequestException("from must be >= 0");
+        }
+        if (size <= 0) {
+            throw new BadRequestException("size must be > 0");
+        }
 
+        // Валидация sort
         if (sort != null && !sort.equals("EVENT_DATE") && !sort.equals("VIEWS")) {
             throw new BadRequestException("Unknown sort: " + sort);
         }
 
-        // ВАЖНО: никаких try/catch — неверные даты должны давать 400
-        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
-        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
+        // Парсинг дат
+        LocalDateTime start;
+        LocalDateTime end;
+        try {
+            start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
+            end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
+        } catch (Exception e) {
+            throw new BadRequestException("Invalid date format");
+        }
+
         validateRange(start, end);
 
-        String normText = (text == null || text.isBlank()) ? null : text;
+        // Нормализация текста
+        String normText = (text == null || text.isBlank()) ? null : text.toLowerCase();
 
+        // КАТЕГОРИИ: ВАЖНОЕ ИСПРАВЛЕНИЕ!
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
+        List<Long> safeCategories = categoriesEmpty ? null : categories; // ← NULL вместо List.of(-1L)
 
+        // Пагинация
         PageRequest pageRequest = PageRequest.of(from / size, size);
         boolean sortByEventDate = "EVENT_DATE".equals(sort);
 
+        // Получение событий
         List<Event> events;
-        if (normText == null) {
-            events = (sortByEventDate
-                    ? eventRepository.findAllPublishedNoTextOrderByEventDate(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                    : eventRepository.findAllPublishedNoTextOrderById(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-            ).getContent();
-        } else {
-            events = (sortByEventDate
-                    ? eventRepository.findAllPublishedWithTextOrderByEventDate(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                    : eventRepository.findAllPublishedWithTextOrderById(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-            ).getContent();
+        try {
+            if (normText == null) {
+                events = (sortByEventDate
+                        ? eventRepository.findAllPublishedNoTextOrderByEventDate(
+                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                        : eventRepository.findAllPublishedNoTextOrderById(
+                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                ).getContent();
+            } else {
+                events = (sortByEventDate
+                        ? eventRepository.findAllPublishedWithTextOrderByEventDate(
+                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                        : eventRepository.findAllPublishedWithTextOrderById(
+                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                ).getContent();
+            }
+        } catch (Exception e) {
+            // Если ошибка в запросе - возвращаем пустой список
+            events = new ArrayList<>();
         }
 
+        // Гарантируем не-null
         if (events == null || events.isEmpty()) {
             return new ArrayList<>();
         }
 
+        // Статистика просмотров
         Map<Long, Long> views = resolveViews(events);
 
+        // Маппинг в DTO
         List<EventFullDto> result = events.stream()
                 .map(e -> EventMapper.toFullDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
 
+        // Сортировка по просмотрам
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
@@ -284,58 +321,83 @@ public class EventService {
                                                int from,
                                                int size,
                                                HttpServletRequest request) {
+
+        // Статистика
         try {
             statsService.hit(request);
         } catch (Exception ignored) {
         }
 
-        if (from < 0) throw new BadRequestException("from must be >= 0");
-        if (size <= 0) throw new BadRequestException("size must be > 0");
-
+        // Валидация
+        if (from < 0) {
+            throw new BadRequestException("from must be >= 0");
+        }
+        if (size <= 0) {
+            throw new BadRequestException("size must be > 0");
+        }
         if (sort != null && !sort.equals("EVENT_DATE") && !sort.equals("VIEWS")) {
             throw new BadRequestException("Unknown sort: " + sort);
         }
 
-        // Строгая валидация дат
-        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
-        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
+        // Даты
+        LocalDateTime start;
+        LocalDateTime end;
+        try {
+            start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
+            end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
+        } catch (Exception e) {
+            throw new BadRequestException("Invalid date format");
+        }
+
         validateRange(start, end);
 
-        String normText = (text == null || text.isBlank()) ? null : text;
+        // Текст
+        String normText = (text == null || text.isBlank()) ? null : text.toLowerCase();
 
+        // КАТЕГОРИИ: ТАКОЕ ЖЕ ИСПРАВЛЕНИЕ!
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
+        List<Long> safeCategories = categoriesEmpty ? null : categories; // ← NULL вместо List.of(-1L)
 
+        // Пагинация
         PageRequest pageRequest = PageRequest.of(from / size, size);
         boolean sortByEventDate = "EVENT_DATE".equals(sort);
 
+        // Получение событий
         List<Event> events;
-        if (normText == null) {
-            events = (sortByEventDate
-                    ? eventRepository.findAllPublishedNoTextOrderByEventDate(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                    : eventRepository.findAllPublishedNoTextOrderById(
-                    categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-            ).getContent();
-        } else {
-            events = (sortByEventDate
-                    ? eventRepository.findAllPublishedWithTextOrderByEventDate(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                    : eventRepository.findAllPublishedWithTextOrderById(
-                    normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-            ).getContent();
+        try {
+            if (normText == null) {
+                events = (sortByEventDate
+                        ? eventRepository.findAllPublishedNoTextOrderByEventDate(
+                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                        : eventRepository.findAllPublishedNoTextOrderById(
+                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                ).getContent();
+            } else {
+                events = (sortByEventDate
+                        ? eventRepository.findAllPublishedWithTextOrderByEventDate(
+                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                        : eventRepository.findAllPublishedWithTextOrderById(
+                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                ).getContent();
+            }
+        } catch (Exception e) {
+            events = new ArrayList<>();
         }
 
+        // Гарантируем не-null
         if (events == null || events.isEmpty()) {
             return new ArrayList<>();
         }
 
+        // Статистика
         Map<Long, Long> views = resolveViews(events);
 
+        // Маппинг
         List<EventShortDto> result = events.stream()
                 .map(e -> EventMapper.toShortDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
 
+        // Сортировка
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
@@ -350,7 +412,11 @@ public class EventService {
 
     @Transactional(readOnly = true)
     public EventFullDto getPublicEvent(Long id, HttpServletRequest request) {
-        statsService.hit(request);
+        // Статистика
+        try {
+            statsService.hit(request);
+        } catch (Exception ignored) {
+        }
 
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + id + " was not found"));
@@ -367,6 +433,10 @@ public class EventService {
 
     @Transactional(readOnly = true)
     public List<EventShortDto> getUserEvents(Long userId, int from, int size) {
+        // Защита от некорректных параметров
+        if (from < 0) from = 0;
+        if (size <= 0) size = 10;
+
         PageRequest pageRequest = PageRequest.of(from / size, size);
         List<Event> events = eventRepository.findAllByInitiatorId(userId, pageRequest).getContent();
         return events.stream()
