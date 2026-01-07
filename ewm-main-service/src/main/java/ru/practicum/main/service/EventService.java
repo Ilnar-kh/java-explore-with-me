@@ -55,77 +55,41 @@ public class EventService {
                                              int from,
                                              int size) {
 
-        // Защита от некорректных параметров
-        if (size <= 0) {
-            size = 10;
-        }
-        if (from < 0) {
-            from = 0;
+        if (from < 0) throw new BadRequestException("from must be >= 0");
+        if (size <= 0) throw new BadRequestException("size must be > 0");
+
+        List<Long> safeUsers = (users == null) ? List.of() : users;
+        List<Long> safeCategories = (categories == null) ? List.of() : categories;
+
+        List<EventState> safeStates;
+        if (states == null) {
+            safeStates = List.of();
+        } else {
+            safeStates = parseStates(states);
         }
 
-        // Безопасный парсинг states
-        List<EventState> stateEnums = null;
-        try {
-            stateEnums = parseStates(states);
-        } catch (Exception e) {
-            stateEnums = null;
+        LocalDateTime start = (rangeStart == null) ? null : DateTimeUtils.parse(rangeStart);
+        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
+        validateRange(start, end);
+
+        PageRequest pageRequest = PageRequest.of(from / size, size);
+
+        List<Event> events = eventRepository.findAllByAdminFilters(
+                safeUsers.isEmpty(), safeUsers,
+                safeStates.isEmpty(), safeStates,
+                safeCategories.isEmpty(), safeCategories,
+                start, end, pageRequest
+        ).getContent();
+
+        if (events.isEmpty()) {
+            return List.of();
         }
 
-        // Безопасный парсинг дат
-        LocalDateTime start = null;
-        LocalDateTime end = null;
-        try {
-            start = rangeStart == null ? null : DateTimeUtils.parse(rangeStart);
-            end = rangeEnd == null ? null : DateTimeUtils.parse(rangeEnd);
-        } catch (Exception e) {
-            // Оставляем null если ошибка парсинга
-        }
+        Map<Long, Long> views = resolveViews(events);
 
-        // Валидация диапазона (игнорируем ошибки)
-        try {
-            validateRange(start, end);
-        } catch (Exception e) {
-            // Не прерываем выполнение
-        }
-
-        // Создание PageRequest с защитой
-        PageRequest pageRequest;
-        try {
-            int page = size > 0 ? from / size : 0;
-            pageRequest = PageRequest.of(page, size);
-        } catch (Exception e) {
-            pageRequest = PageRequest.of(0, 10);
-        }
-
-        // Получение событий с защитой
-        List<Event> events;
-        try {
-            events = eventRepository
-                    .findAllByAdminFilters(users, stateEnums, categories, start, end, pageRequest)
-                    .getContent();
-        } catch (Exception e) {
-            events = new ArrayList<>();
-        }
-
-        // Гарантируем не-null
-        if (events == null) {
-            events = new ArrayList<>();
-        }
-
-        // Маппинг в DTO с защитой
-        List<EventFullDto> result = new ArrayList<>();
-        for (Event event : events) {
-            try {
-                EventFullDto dto = EventMapper.toFullDto(event, event.getViews());
-                if (dto != null) {
-                    result.add(dto);
-                }
-            } catch (Exception e) {
-                continue; // Пропускаем проблемные события
-            }
-        }
-
-        return result;
+        return events.stream()
+                .map(e -> EventMapper.toFullDto(e, views.getOrDefault(e.getId(), 0L)))
+                .toList();
     }
 
     private List<EventState> parseStates(List<String> states) {
