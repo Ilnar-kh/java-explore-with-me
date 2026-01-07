@@ -183,13 +183,11 @@ public class EventService {
                                                   int size,
                                                   HttpServletRequest request) {
 
-        // Статистика (не должна ломать выдачу)
         try {
             statsService.hit(request);
         } catch (Exception ignored) {
         }
 
-        // Валидация параметров
         if (from < 0) {
             throw new BadRequestException("from must be >= 0");
         }
@@ -197,12 +195,10 @@ public class EventService {
             throw new BadRequestException("size must be > 0");
         }
 
-        // Валидация sort
         if (sort != null && !sort.equals("EVENT_DATE") && !sort.equals("VIEWS")) {
             throw new BadRequestException("Unknown sort: " + sort);
         }
 
-        // Парсинг дат
         LocalDateTime start;
         LocalDateTime end;
         try {
@@ -214,18 +210,14 @@ public class EventService {
 
         validateRange(start, end);
 
-        // Нормализация текста
         String normText = (text == null || text.isBlank()) ? null : text.toLowerCase();
 
-        // КАТЕГОРИИ: ВАЖНОЕ ИСПРАВЛЕНИЕ!
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
         List<Long> safeCategories = categoriesEmpty ? null : categories; // ← NULL вместо List.of(-1L)
 
-        // Пагинация
         PageRequest pageRequest = PageRequest.of(from / size, size);
         boolean sortByEventDate = "EVENT_DATE".equals(sort);
 
-        // Получение событий
         List<Event> events;
         try {
             if (normText == null) {
@@ -244,24 +236,19 @@ public class EventService {
                 ).getContent();
             }
         } catch (Exception e) {
-            // Если ошибка в запросе - возвращаем пустой список
             events = new ArrayList<>();
         }
 
-        // Гарантируем не-null
         if (events == null || events.isEmpty()) {
             return new ArrayList<>();
         }
 
-        // Статистика просмотров
         Map<Long, Long> views = resolveViews(events);
 
-        // Маппинг в DTO
         List<EventFullDto> result = events.stream()
                 .map(e -> EventMapper.toFullDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
 
-        // Сортировка по просмотрам
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
@@ -318,7 +305,6 @@ public class EventService {
         // Текст
         String normText = (text == null || text.isBlank()) ? null : text.toLowerCase();
 
-        // КАТЕГОРИИ: ТАКОЕ ЖЕ ИСПРАВЛЕНИЕ!
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
         List<Long> safeCategories = categoriesEmpty ? null : categories; // ← NULL вместо List.of(-1L)
 
