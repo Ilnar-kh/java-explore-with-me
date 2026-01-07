@@ -16,24 +16,39 @@ import ru.practicum.main.event.model.EventState;
 
 public interface EventRepository extends JpaRepository<Event, Long> {
 
-    @Query("""
-            SELECT e
-            FROM Event e
-            WHERE (:usersEmpty = true OR e.initiator.id IN :users)
-              AND (:statesEmpty = true OR e.state IN :states)
-              AND (:categoriesEmpty = true OR e.category.id IN :categories)
-              AND (:rangeStart IS NULL OR e.eventDate >= :rangeStart)
-              AND (:rangeEnd IS NULL OR e.eventDate <= :rangeEnd)
-            """)
-    Page<Event> findAllByAdminFilters(@Param("usersEmpty") boolean usersEmpty,
-                                      @Param("users") List<Long> users,
-                                      @Param("statesEmpty") boolean statesEmpty,
-                                      @Param("states") List<EventState> states,
-                                      @Param("categoriesEmpty") boolean categoriesEmpty,
-                                      @Param("categories") List<Long> categories,
-                                      @Param("rangeStart") LocalDateTime rangeStart,
-                                      @Param("rangeEnd") LocalDateTime rangeEnd,
-                                      Pageable pageable);
+    @Query(
+            value = """
+                    SELECT e.*
+                    FROM events e
+                    WHERE
+                        (:usersEmpty = true OR e.initiator_id IN (:users))
+                    AND (:statesEmpty = true OR e.state IN (:states))
+                    AND (:categoriesEmpty = true OR e.category_id IN (:categories))
+                    AND (:rangeStart IS NULL OR e.event_date >= CAST(:rangeStart AS timestamp))
+                    AND (:rangeEnd   IS NULL OR e.event_date <= CAST(:rangeEnd   AS timestamp))
+                    ORDER BY e.id ASC
+                    """,
+            countQuery = """
+                    SELECT COUNT(*)
+                    FROM events e
+                    WHERE
+                        (:usersEmpty = true OR e.initiator_id IN (:users))
+                    AND (:statesEmpty = true OR e.state IN (:states))
+                    AND (:categoriesEmpty = true OR e.category_id IN (:categories))
+                    AND (:rangeStart IS NULL OR e.event_date >= CAST(:rangeStart AS timestamp))
+                    AND (:rangeEnd   IS NULL OR e.event_date <= CAST(:rangeEnd   AS timestamp))
+                    """,
+            nativeQuery = true
+    )
+    Page<Event> findAllByAdminFiltersNative(@Param("usersEmpty") boolean usersEmpty,
+                                            @Param("users") List<Long> users,
+                                            @Param("statesEmpty") boolean statesEmpty,
+                                            @Param("states") List<String> states,
+                                            @Param("categoriesEmpty") boolean categoriesEmpty,
+                                            @Param("categories") List<Long> categories,
+                                            @Param("rangeStart") LocalDateTime rangeStart,
+                                            @Param("rangeEnd") LocalDateTime rangeEnd,
+                                            Pageable pageable);
 
     @Query(
             value = """

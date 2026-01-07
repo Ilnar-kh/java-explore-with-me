@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -14,7 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ru.practicum.main.category.model.Category;
 import ru.practicum.main.category.repository.CategoryRepository;
-import ru.practicum.main.dto.*;
+import ru.practicum.main.dto.EventFullDto;
+import ru.practicum.main.dto.EventShortDto;
+import ru.practicum.main.dto.NewEventDto;
+import ru.practicum.main.dto.UpdateEventAdminRequest;
+import ru.practicum.main.dto.UpdateEventUserRequest;
 import ru.practicum.main.event.model.Event;
 import ru.practicum.main.event.model.EventState;
 import ru.practicum.main.event.repository.EventRepository;
@@ -22,8 +25,8 @@ import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.exception.ConflictException;
 import ru.practicum.main.exception.NotFoundException;
 import ru.practicum.main.mapper.EventMapper;
-import ru.practicum.main.util.DateTimeUtils;
 import ru.practicum.main.user.model.User;
+import ru.practicum.main.util.DateTimeUtils;
 
 @Service
 public class EventService {
@@ -58,15 +61,13 @@ public class EventService {
         if (from < 0) throw new BadRequestException("from must be >= 0");
         if (size <= 0) throw new BadRequestException("size must be > 0");
 
-        List<Long> safeUsers = (users == null) ? List.of() : users;
-        List<Long> safeCategories = (categories == null) ? List.of() : categories;
+        boolean usersEmpty = (users == null || users.isEmpty());
+        boolean categoriesEmpty = (categories == null || categories.isEmpty());
+        boolean statesEmpty = (states == null || states.isEmpty());
 
-        List<EventState> safeStates;
-        if (states == null) {
-            safeStates = List.of();
-        } else {
-            safeStates = parseStates(states);
-        }
+        List<Long> safeUsers = usersEmpty ? List.of(0L) : users;
+        List<Long> safeCategories = categoriesEmpty ? List.of(0L) : categories;
+        List<String> safeStates = statesEmpty ? List.of("DUMMY") : states.stream().map(String::toUpperCase).toList();
 
         LocalDateTime start = (rangeStart == null) ? null : DateTimeUtils.parse(rangeStart);
         LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
@@ -74,14 +75,14 @@ public class EventService {
 
         PageRequest pageRequest = PageRequest.of(from / size, size);
 
-        List<Event> events = eventRepository.findAllByAdminFilters(
-                safeUsers.isEmpty(), safeUsers,
-                safeStates.isEmpty(), safeStates,
-                safeCategories.isEmpty(), safeCategories,
+        List<Event> events = eventRepository.findAllByAdminFiltersNative(
+                usersEmpty, safeUsers,
+                statesEmpty, safeStates,
+                categoriesEmpty, safeCategories,
                 start, end, pageRequest
         ).getContent();
 
-        if (events.isEmpty()) {
+        if (events == null || events.isEmpty()) {
             return List.of();
         }
 
@@ -90,23 +91,6 @@ public class EventService {
         return events.stream()
                 .map(e -> EventMapper.toFullDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
-    }
-
-    private List<EventState> parseStates(List<String> states) {
-        if (states == null || states.isEmpty()) {
-            return null;
-        }
-
-        List<EventState> result = new ArrayList<>();
-        for (String state : states) {
-            try {
-                result.add(EventState.valueOf(state.toUpperCase()));
-            } catch (IllegalArgumentException e) {
-                continue; // Пропускаем некорректные значения
-            }
-        }
-
-        return result.isEmpty() ? null : result;
     }
 
     @Transactional
@@ -144,8 +128,7 @@ public class EventService {
             switch (dto.getStateAction()) {
                 case "PUBLISH_EVENT":
                     if (event.getState() != EventState.PENDING) {
-                        throw new ConflictException("Cannot publish the event because it's not in the right state: "
-                                + event.getState());
+                        throw new ConflictException("Cannot publish the event because it's not in the right state: " + event.getState());
                     }
                     LocalDateTime publishTime = LocalDateTime.now();
                     if (event.getEventDate().isBefore(publishTime.plusHours(1))) {
@@ -168,97 +151,8 @@ public class EventService {
         }
 
         Event saved = eventRepository.save(event);
-        return EventMapper.toFullDto(saved, saved.getViews());
-    }
-
-    @Transactional(readOnly = true)
-    public List<EventFullDto> getEventsPublicFull(String text,
-                                                  List<Long> categories,
-                                                  Boolean paid,
-                                                  String rangeStart,
-                                                  String rangeEnd,
-                                                  boolean onlyAvailable,
-                                                  String sort,
-                                                  int from,
-                                                  int size,
-                                                  HttpServletRequest request) {
-
-        try {
-            statsService.hit(request);
-        } catch (Exception ignored) {
-        }
-
-        if (from < 0) {
-            throw new BadRequestException("from must be >= 0");
-        }
-        if (size <= 0) {
-            throw new BadRequestException("size must be > 0");
-        }
-
-        if (sort != null && !sort.equals("EVENT_DATE") && !sort.equals("VIEWS")) {
-            throw new BadRequestException("Unknown sort: " + sort);
-        }
-
-        LocalDateTime start;
-        LocalDateTime end;
-        try {
-            start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
-            end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
-        } catch (Exception e) {
-            throw new BadRequestException("Invalid date format");
-        }
-
-        validateRange(start, end);
-
-        String normText = (text == null || text.isBlank()) ? null : text.toLowerCase();
-
-        boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        List<Long> safeCategories = categoriesEmpty ? null : categories; // ← NULL вместо List.of(-1L)
-
-        PageRequest pageRequest = PageRequest.of(from / size, size);
-        boolean sortByEventDate = "EVENT_DATE".equals(sort);
-
-        List<Event> events;
-        try {
-            if (normText == null) {
-                events = (sortByEventDate
-                        ? eventRepository.findAllPublishedNoTextOrderByEventDate(
-                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                        : eventRepository.findAllPublishedNoTextOrderById(
-                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                ).getContent();
-            } else {
-                events = (sortByEventDate
-                        ? eventRepository.findAllPublishedWithTextOrderByEventDate(
-                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                        : eventRepository.findAllPublishedWithTextOrderById(
-                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                ).getContent();
-            }
-        } catch (Exception e) {
-            events = new ArrayList<>();
-        }
-
-        if (events == null || events.isEmpty()) {
-            return new ArrayList<>();
-        }
-
-        Map<Long, Long> views = resolveViews(events);
-
-        List<EventFullDto> result = events.stream()
-                .map(e -> EventMapper.toFullDto(e, views.getOrDefault(e.getId(), 0L)))
-                .toList();
-
-        if ("VIEWS".equals(sort)) {
-            result = result.stream()
-                    .sorted((a, b) -> Long.compare(
-                            b.getViews() == null ? 0 : b.getViews(),
-                            a.getViews() == null ? 0 : a.getViews()
-                    ))
-                    .toList();
-        }
-
-        return result;
+        Map<Long, Long> views = resolveViews(List.of(saved));
+        return EventMapper.toFullDto(saved, views.getOrDefault(saved.getId(), 0L));
     }
 
     @Transactional(readOnly = true)
@@ -273,81 +167,49 @@ public class EventService {
                                                int size,
                                                HttpServletRequest request) {
 
-        // Статистика
         try {
             statsService.hit(request);
         } catch (Exception ignored) {
         }
 
-        // Валидация
-        if (from < 0) {
-            throw new BadRequestException("from must be >= 0");
-        }
-        if (size <= 0) {
-            throw new BadRequestException("size must be > 0");
-        }
+        if (from < 0) throw new BadRequestException("from must be >= 0");
+        if (size <= 0) throw new BadRequestException("size must be > 0");
         if (sort != null && !sort.equals("EVENT_DATE") && !sort.equals("VIEWS")) {
             throw new BadRequestException("Unknown sort: " + sort);
         }
 
-        // Даты
-        LocalDateTime start;
-        LocalDateTime end;
-        try {
-            start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
-            end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
-        } catch (Exception e) {
-            throw new BadRequestException("Invalid date format");
-        }
-
+        LocalDateTime start = (rangeStart == null) ? LocalDateTime.now() : DateTimeUtils.parse(rangeStart);
+        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
 
-        // Текст
-        String normText = (text == null || text.isBlank()) ? null : text.toLowerCase();
+        String normText = (text == null || text.isBlank()) ? null : text;
 
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        List<Long> safeCategories = categoriesEmpty ? null : categories; // ← NULL вместо List.of(-1L)
+        List<Long> safeCategories = categoriesEmpty ? List.of(0L) : categories;
 
-        // Пагинация
         PageRequest pageRequest = PageRequest.of(from / size, size);
         boolean sortByEventDate = "EVENT_DATE".equals(sort);
 
-        // Получение событий
-        List<Event> events;
-        try {
-            if (normText == null) {
-                events = (sortByEventDate
-                        ? eventRepository.findAllPublishedNoTextOrderByEventDate(
-                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                        : eventRepository.findAllPublishedNoTextOrderById(
-                        categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                ).getContent();
-            } else {
-                events = (sortByEventDate
-                        ? eventRepository.findAllPublishedWithTextOrderByEventDate(
-                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                        : eventRepository.findAllPublishedWithTextOrderById(
-                        normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
-                ).getContent();
-            }
-        } catch (Exception e) {
-            events = new ArrayList<>();
-        }
+        List<Event> events = (normText == null)
+                ? (sortByEventDate
+                ? eventRepository.findAllPublishedNoTextOrderByEventDate(categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                : eventRepository.findAllPublishedNoTextOrderById(categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+        ).getContent()
+                : (sortByEventDate
+                ? eventRepository.findAllPublishedWithTextOrderByEventDate(normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+                : eventRepository.findAllPublishedWithTextOrderById(normText, categoriesEmpty, safeCategories, paid, start, end, onlyAvailable, pageRequest)
+        ).getContent();
 
-        // Гарантируем не-null
         if (events == null || events.isEmpty()) {
-            return new ArrayList<>();
+            return List.of();
         }
 
-        // Статистика
         Map<Long, Long> views = resolveViews(events);
 
-        // Маппинг
         List<EventShortDto> result = events.stream()
                 .map(e -> EventMapper.toShortDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
 
-        // Сортировка
         if ("VIEWS".equals(sort)) {
             result = result.stream()
                     .sorted((a, b) -> Long.compare(
@@ -362,7 +224,6 @@ public class EventService {
 
     @Transactional(readOnly = true)
     public EventFullDto getPublicEvent(Long id, HttpServletRequest request) {
-        // Статистика
         try {
             statsService.hit(request);
         } catch (Exception ignored) {
@@ -376,21 +237,25 @@ public class EventService {
         }
 
         Map<Long, Long> views = resolveViews(List.of(event));
-        long v = views.getOrDefault(event.getId(), 0L);
-
-        return EventMapper.toFullDto(event, v);
+        return EventMapper.toFullDto(event, views.getOrDefault(event.getId(), 0L));
     }
 
     @Transactional(readOnly = true)
     public List<EventShortDto> getUserEvents(Long userId, int from, int size) {
-        // Защита от некорректных параметров
-        if (from < 0) from = 0;
-        if (size <= 0) size = 10;
+        if (from < 0) throw new BadRequestException("from must be >= 0");
+        if (size <= 0) throw new BadRequestException("size must be > 0");
 
         PageRequest pageRequest = PageRequest.of(from / size, size);
         List<Event> events = eventRepository.findAllByInitiatorId(userId, pageRequest).getContent();
+
+        if (events == null || events.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Long> views = resolveViews(events);
+
         return events.stream()
-                .map(event -> EventMapper.toShortDto(event, event.getViews()))
+                .map(e -> EventMapper.toShortDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
     }
 
@@ -407,14 +272,17 @@ public class EventService {
         Event event = EventMapper.toEntity(dto, category, initiator, locationService.save(dto.getLocation()));
         Event saved = eventRepository.save(event);
 
-        return EventMapper.toFullDto(saved, saved.getViews());
+        Map<Long, Long> views = resolveViews(List.of(saved));
+        return EventMapper.toFullDto(saved, views.getOrDefault(saved.getId(), 0L));
     }
 
     @Transactional(readOnly = true)
     public EventFullDto getUserEvent(Long userId, Long eventId) {
         Event event = eventRepository.findByIdAndInitiatorId(eventId, userId)
                 .orElseThrow(() -> new NotFoundException("Event with id=" + eventId + " was not found"));
-        return EventMapper.toFullDto(event, event.getViews());
+
+        Map<Long, Long> views = resolveViews(List.of(event));
+        return EventMapper.toFullDto(event, views.getOrDefault(event.getId(), 0L));
     }
 
     @Transactional
@@ -454,18 +322,17 @@ public class EventService {
                 case "SEND_TO_REVIEW":
                     event.setState(EventState.PENDING);
                     break;
-
                 case "CANCEL_REVIEW":
                     event.setState(EventState.CANCELED);
                     break;
-
                 default:
                     throw new BadRequestException("Unknown state action: " + dto.getStateAction());
             }
         }
 
         Event saved = eventRepository.save(event);
-        return EventMapper.toFullDto(saved, saved.getViews());
+        Map<Long, Long> views = resolveViews(List.of(saved));
+        return EventMapper.toFullDto(saved, views.getOrDefault(saved.getId(), 0L));
     }
 
     private void applyCommonUpdates(Event event,
@@ -476,31 +343,18 @@ public class EventService {
                                     Integer participantLimit,
                                     Boolean requestModeration,
                                     String title) {
+
         if (participantLimit != null && participantLimit < 0) {
             throw new BadRequestException("participantLimit must be >= 0");
         }
 
-        if (annotation != null) {
-            event.setAnnotation(annotation);
-        }
-        if (description != null) {
-            event.setDescription(description);
-        }
-        if (eventDate != null) {
-            event.setEventDate(DateTimeUtils.parse(eventDate));
-        }
-        if (paid != null) {
-            event.setPaid(paid);
-        }
-        if (participantLimit != null) {
-            event.setParticipantLimit(participantLimit);
-        }
-        if (requestModeration != null) {
-            event.setRequestModeration(requestModeration);
-        }
-        if (title != null) {
-            event.setTitle(title);
-        }
+        if (annotation != null) event.setAnnotation(annotation);
+        if (description != null) event.setDescription(description);
+        if (eventDate != null) event.setEventDate(DateTimeUtils.parse(eventDate));
+        if (paid != null) event.setPaid(paid);
+        if (participantLimit != null) event.setParticipantLimit(participantLimit);
+        if (requestModeration != null) event.setRequestModeration(requestModeration);
+        if (title != null) event.setTitle(title);
     }
 
     private Category getCategory(Long id) {
@@ -514,15 +368,21 @@ public class EventService {
         }
 
         List<String> uris = events.stream()
-                .map(event -> "/events/" + event.getId())
+                .map(e -> "/events/" + e.getId())
                 .toList();
 
-        Map<String, Long> stats = statsService.getViews(uris);
+        Map<String, Long> stats;
+        try {
+            stats = statsService.getViews(uris);
+            if (stats == null) stats = Map.of();
+        } catch (Exception e) {
+            stats = Map.of();
+        }
 
         Map<Long, Long> result = new HashMap<>();
         for (Event event : events) {
-            long v = stats.getOrDefault("/events/" + event.getId(),
-                    event.getViews() == null ? 0L : event.getViews());
+            String uri = "/events/" + event.getId();
+            long v = stats.getOrDefault(uri, event.getViews() == null ? 0L : event.getViews());
             result.put(event.getId(), v);
         }
         return result;
