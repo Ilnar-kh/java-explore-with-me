@@ -8,46 +8,13 @@ import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import ru.practicum.main.event.model.Event;
 
-public interface EventRepository extends JpaRepository<Event, Long> {
-
-    @Query(
-            value = """
-                    SELECT e.*
-                    FROM events e
-                    WHERE
-                        (:usersEmpty = true OR e.initiator_id IN (:users))
-                    AND (:statesEmpty = true OR e.state IN (:states))
-                    AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                    AND (:rangeStart IS NULL OR e.event_date >= CAST(:rangeStart AS timestamp))
-                    AND (:rangeEnd   IS NULL OR e.event_date <= CAST(:rangeEnd   AS timestamp))
-                    ORDER BY e.id ASC
-                    """,
-            countQuery = """
-                    SELECT COUNT(*)
-                    FROM events e
-                    WHERE
-                        (:usersEmpty = true OR e.initiator_id IN (:users))
-                    AND (:statesEmpty = true OR e.state IN (:states))
-                    AND (:categoriesEmpty = true OR e.category_id IN (:categories))
-                    AND (:rangeStart IS NULL OR e.event_date >= CAST(:rangeStart AS timestamp))
-                    AND (:rangeEnd   IS NULL OR e.event_date <= CAST(:rangeEnd   AS timestamp))
-                    """,
-            nativeQuery = true
-    )
-    Page<Event> findAllByAdminFiltersNative(@Param("usersEmpty") boolean usersEmpty,
-                                            @Param("users") List<Long> users,
-                                            @Param("statesEmpty") boolean statesEmpty,
-                                            @Param("states") List<String> states,
-                                            @Param("categoriesEmpty") boolean categoriesEmpty,
-                                            @Param("categories") List<Long> categories,
-                                            @Param("rangeStart") LocalDateTime rangeStart,
-                                            @Param("rangeEnd") LocalDateTime rangeEnd,
-                                            Pageable pageable);
+public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
 
     @Query(
             value = """

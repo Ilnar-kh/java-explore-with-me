@@ -1,6 +1,8 @@
 package ru.practicum.main.service;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -8,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +32,9 @@ import ru.practicum.main.mapper.EventMapper;
 import ru.practicum.main.user.model.User;
 import ru.practicum.main.util.DateTimeUtils;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class EventService {
 
     private final EventRepository eventRepository;
@@ -37,58 +43,54 @@ public class EventService {
     private final LocationService locationService;
     private final StatsService statsService;
 
-    public EventService(EventRepository eventRepository,
-                        CategoryRepository categoryRepository,
-                        UserService userService,
-                        LocationService locationService,
-                        StatsService statsService) {
-        this.eventRepository = eventRepository;
-        this.categoryRepository = categoryRepository;
-        this.userService = userService;
-        this.locationService = locationService;
-        this.statsService = statsService;
-    }
-
     @Transactional(readOnly = true)
     public List<EventFullDto> getEventsAdmin(List<Long> users,
-                                             List<String> states,
+                                             List<EventState> states,
                                              List<Long> categories,
-                                             String rangeStart,
-                                             String rangeEnd,
+                                             LocalDateTime rangeStart,
+                                             LocalDateTime rangeEnd,
                                              int from,
                                              int size) {
 
         if (from < 0) throw new BadRequestException("from must be >= 0");
         if (size <= 0) throw new BadRequestException("size must be > 0");
+        validateRange(rangeStart, rangeEnd);
 
-        boolean usersEmpty = (users == null || users.isEmpty());
-        boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        boolean statesEmpty = (states == null || states.isEmpty());
+        log.info("[ADMIN_EVENTS] incoming: users={}, states={}, categories={}, rangeStart={}, rangeEnd={}, from={}, size={}",
+                users, states, categories, rangeStart, rangeEnd, from, size);
 
-        List<Long> safeUsers = usersEmpty ? List.of(0L) : users;
-        List<Long> safeCategories = categoriesEmpty ? List.of(0L) : categories;
-        List<String> safeStates = statesEmpty ? List.of("DUMMY") : states.stream().map(String::toUpperCase).toList();
+        Pageable pageable = PageRequest.of(from / size, size);
 
-        LocalDateTime start = (rangeStart == null) ? null : DateTimeUtils.parse(rangeStart);
-        LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
-        validateRange(start, end);
+        Specification<Event> spec = Specification.where(null);
 
-        PageRequest pageRequest = PageRequest.of(from / size, size);
+        if (users != null && !users.isEmpty()) {
+            spec = spec.and((root, query, cb) -> root.get("initiator").get("id").in(users));
+        }
+        if (states != null && !states.isEmpty()) {
+            spec = spec.and((root, query, cb) -> root.get("state").in(states));
+        }
+        if (categories != null && !categories.isEmpty()) {
+            spec = spec.and((root, query, cb) -> root.get("category").get("id").in(categories));
+        }
+        if (rangeStart != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("eventDate"), rangeStart));
+        }
+        if (rangeEnd != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("eventDate"), rangeEnd));
+        }
 
-        List<Event> events = eventRepository.findAllByAdminFiltersNative(
-                usersEmpty, safeUsers,
-                statesEmpty, safeStates,
-                categoriesEmpty, safeCategories,
-                start, end, pageRequest
-        ).getContent();
+        var page = eventRepository.findAll(spec, pageable);
 
-        if (events == null || events.isEmpty()) {
+        log.info("[ADMIN_EVENTS] result: totalElements={}, returned={}",
+                page.getTotalElements(), page.getContent().size());
+
+        if (page.isEmpty()) {
             return List.of();
         }
 
-        Map<Long, Long> views = resolveViews(events);
+        Map<Long, Long> views = resolveViews(page.getContent());
 
-        return events.stream()
+        return page.getContent().stream()
                 .map(e -> EventMapper.toFullDto(e, views.getOrDefault(e.getId(), 0L)))
                 .toList();
     }
@@ -126,7 +128,7 @@ public class EventService {
 
         if (dto.getStateAction() != null) {
             switch (dto.getStateAction()) {
-                case "PUBLISH_EVENT":
+                case "PUBLISH_EVENT" -> {
                     if (event.getState() != EventState.PENDING) {
                         throw new ConflictException("Cannot publish the event because it's not in the right state: " + event.getState());
                     }
@@ -136,17 +138,14 @@ public class EventService {
                     }
                     event.setState(EventState.PUBLISHED);
                     event.setPublishedOn(publishTime);
-                    break;
-
-                case "REJECT_EVENT":
+                }
+                case "REJECT_EVENT" -> {
                     if (event.getState() == EventState.PUBLISHED) {
                         throw new ConflictException("Cannot reject published event");
                     }
                     event.setState(EventState.CANCELED);
-                    break;
-
-                default:
-                    throw new BadRequestException("Unknown state action: " + dto.getStateAction());
+                }
+                default -> throw new BadRequestException("Unknown state action: " + dto.getStateAction());
             }
         }
 
@@ -169,7 +168,8 @@ public class EventService {
 
         try {
             statsService.hit(request);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("[PUBLIC_EVENTS] stats hit failed: {}", e.getMessage());
         }
 
         if (from < 0) throw new BadRequestException("from must be >= 0");
@@ -182,13 +182,17 @@ public class EventService {
         LocalDateTime end = (rangeEnd == null) ? null : DateTimeUtils.parse(rangeEnd);
         validateRange(start, end);
 
-        String normText = (text == null || text.isBlank()) ? null : text;
+        String normText = (text == null || text.isBlank()) ? null : text.toLowerCase();
 
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        List<Long> safeCategories = categoriesEmpty ? List.of(0L) : categories;
+        // ВАЖНО: чтобы IN(:categories) не получил пустой список, даём заглушку
+        List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
 
         PageRequest pageRequest = PageRequest.of(from / size, size);
         boolean sortByEventDate = "EVENT_DATE".equals(sort);
+
+        log.info("[PUBLIC_EVENTS] incoming: text={}, categoriesEmpty={}, categories={}, paid={}, start={}, end={}, onlyAvailable={}, sort={}, from={}, size={}",
+                normText, categoriesEmpty, categories, paid, start, end, onlyAvailable, sort, from, size);
 
         List<Event> events = (normText == null)
                 ? (sortByEventDate
@@ -226,7 +230,8 @@ public class EventService {
     public EventFullDto getPublicEvent(Long id, HttpServletRequest request) {
         try {
             statsService.hit(request);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("[PUBLIC_EVENT] stats hit failed: {}", e.getMessage());
         }
 
         Event event = eventRepository.findById(id)
@@ -319,14 +324,9 @@ public class EventService {
 
         if (dto.getStateAction() != null) {
             switch (dto.getStateAction()) {
-                case "SEND_TO_REVIEW":
-                    event.setState(EventState.PENDING);
-                    break;
-                case "CANCEL_REVIEW":
-                    event.setState(EventState.CANCELED);
-                    break;
-                default:
-                    throw new BadRequestException("Unknown state action: " + dto.getStateAction());
+                case "SEND_TO_REVIEW" -> event.setState(EventState.PENDING);
+                case "CANCEL_REVIEW" -> event.setState(EventState.CANCELED);
+                default -> throw new BadRequestException("Unknown state action: " + dto.getStateAction());
             }
         }
 
@@ -376,6 +376,7 @@ public class EventService {
             stats = statsService.getViews(uris);
             if (stats == null) stats = Map.of();
         } catch (Exception e) {
+            log.debug("[VIEWS] stats getViews failed: {}", e.getMessage());
             stats = Map.of();
         }
 
