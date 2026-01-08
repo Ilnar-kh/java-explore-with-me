@@ -53,13 +53,11 @@ public final class EventMapper {
     }
 
     public static EventFullDto toFullDto(Event event, Long views) {
-        // АБСОЛЮТНАЯ защита от NPE
         if (event == null) {
             return createEmptyEventFullDto();
         }
 
         try {
-            // Все поля с безопасными значениями
             String annotation = event.getAnnotation() != null ? event.getAnnotation() : "";
 
             CategoryDto category;
@@ -123,7 +121,6 @@ public final class EventMapper {
                 publishedOn = event.getPublishedOn() != null ?
                         DateTimeUtils.format(event.getPublishedOn()) : null;
             } catch (Exception e) {
-                // publishedOn может быть null, это нормально
             }
 
             Boolean requestModeration = event.getRequestModeration() != null ?
@@ -156,7 +153,6 @@ public final class EventMapper {
                     resolvedViews
             );
         } catch (Exception e) {
-            // Если что-то пошло не так - возвращаем пустой DTO
             return createEmptyEventFullDto();
         }
     }
@@ -183,7 +179,6 @@ public final class EventMapper {
     }
 
     public static EventShortDto toShortDto(Event event, Long views) {
-        // Защита от NPE для toShortDto тоже
         if (event == null) {
             return createEmptyEventShortDto();
         }

@@ -185,7 +185,6 @@ public class EventService {
         String normText = (text == null || text.isBlank()) ? null : text.toLowerCase();
 
         boolean categoriesEmpty = (categories == null || categories.isEmpty());
-        // ВАЖНО: чтобы IN(:categories) не получил пустой список, даём заглушку
         List<Long> safeCategories = categoriesEmpty ? List.of(-1L) : categories;
 
         PageRequest pageRequest = PageRequest.of(from / size, size);
