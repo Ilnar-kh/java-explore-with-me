@@ -1,0 +1,140 @@
+{
+  "info": {
+    "name": "Comments",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Создание комментария",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"text\": \"Первый комментарий\" }"
+        },
+        "url": "http://localhost:8080/users/1/events/1/comments"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('201 Created', () => pm.response.code === 201);",
+              "const json = pm.response.json();",
+              "pm.test('response has id', () => json.id !== undefined);",
+              "pm.test('text is correct', () => json.text === 'Первый комментарий');",
+              "pm.test('eventId is 1', () => json.eventId === 1);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Ошибка: пустой комментарий",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"text\": \"\" }"
+        },
+        "url": "http://localhost:8080/users/1/events/1/comments"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('400 Bad Request', () => pm.response.code === 400);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Получение комментариев события",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8080/events/1/comments?from=0&size=10"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', () => pm.response.code === 200);",
+              "const json = pm.response.json();",
+              "pm.test('response is array', () => Array.isArray(json));",
+              "pm.test('at least one comment', () => json.length > 0);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Обновление комментария",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{ \"text\": \"Обновлённый текст\" }"
+        },
+        "url": "http://localhost:8080/users/1/comments/1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('200 OK', () => pm.response.code === 200);",
+              "const json = pm.response.json();",
+              "pm.test('text updated', () => json.text === 'Обновлённый текст');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Удаление комментария пользователем",
+      "request": {
+        "method": "DELETE",
+        "url": "http://localhost:8080/users/1/comments/1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('204 No Content', () => pm.response.code === 204);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Удаление комментария администратором",
+      "request": {
+        "method": "DELETE",
+        "url": "http://localhost:8080/admin/comments/1"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('204 No Content', () => pm.response.code === 204);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

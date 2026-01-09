@@ -1,8 +1,8 @@
 package ru.practicum.main.service;
 
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -32,16 +32,29 @@ import ru.practicum.main.mapper.EventMapper;
 import ru.practicum.main.user.model.User;
 import ru.practicum.main.util.DateTimeUtils;
 
-@Slf4j
+
 @Service
-@RequiredArgsConstructor
 public class EventService {
+
+    private static final Logger log = LoggerFactory.getLogger(EventService.class);
 
     private final EventRepository eventRepository;
     private final CategoryRepository categoryRepository;
     private final UserService userService;
     private final LocationService locationService;
     private final StatsService statsService;
+
+    public EventService(EventRepository eventRepository,
+                        CategoryRepository categoryRepository,
+                        UserService userService,
+                        LocationService locationService,
+                        StatsService statsService) {
+        this.eventRepository = eventRepository;
+        this.categoryRepository = categoryRepository;
+        this.userService = userService;
+        this.locationService = locationService;
+        this.statsService = statsService;
+    }
 
     @Transactional(readOnly = true)
     public List<EventFullDto> getEventsAdmin(List<Long> users,
