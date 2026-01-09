@@ -116,12 +116,10 @@ public final class EventMapper {
             Integer participantLimit = event.getParticipantLimit() != null ?
                     event.getParticipantLimit() : 0;
 
-            String publishedOn = null;
-            try {
-                publishedOn = event.getPublishedOn() != null ?
-                        DateTimeUtils.format(event.getPublishedOn()) : null;
-            } catch (Exception e) {
-            }
+            // FIX: убрали пустой catch (Checkstyle). Здесь try/catch не нужен.
+            String publishedOn = (event.getPublishedOn() != null)
+                    ? DateTimeUtils.format(event.getPublishedOn())
+                    : null;
 
             Boolean requestModeration = event.getRequestModeration() != null ?
                     event.getRequestModeration() : true;
