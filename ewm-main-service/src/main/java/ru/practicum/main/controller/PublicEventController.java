@@ -4,7 +4,9 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.List;
 
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,6 +18,7 @@ import ru.practicum.main.dto.EventShortDto;
 import ru.practicum.main.exception.BadRequestException;
 import ru.practicum.main.service.EventService;
 
+@Validated
 @RestController
 @RequestMapping("/events")
 public class PublicEventController {
@@ -55,7 +58,7 @@ public class PublicEventController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<EventFullDto> getEvent(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<EventFullDto> getEvent(@PathVariable @Positive Long id, HttpServletRequest request) {
         return ResponseEntity.ok(eventService.getPublicEvent(id, request));
     }
 }

@@ -150,6 +150,8 @@ public class ParticipationRequestService {
         List<ParticipationRequestDto> confirmed = new ArrayList<>();
         List<ParticipationRequestDto> rejected = new ArrayList<>();
 
+        List<ParticipationRequest> toSave = new ArrayList<>();
+
         for (ParticipationRequest request : requests) {
 
             if (!request.getEvent().getId().equals(eventId)) {
@@ -169,25 +171,36 @@ public class ParticipationRequestService {
 
                 request.setStatus(ParticipationRequestStatus.CONFIRMED);
                 event.setConfirmedRequests(event.getConfirmedRequests() + 1);
-                confirmed.add(ParticipationRequestMapper.toDto(requestRepository.save(request)));
+                confirmed.add(ParticipationRequestMapper.toDto(request));
+                toSave.add(request);
 
                 if (event.getParticipantLimit() != null && event.getParticipantLimit() != 0
                         && event.getConfirmedRequests() >= event.getParticipantLimit()) {
-                    rejectPending(event, rejected);
+
+                    List<ParticipationRequest> pendingToReject = rejectPending(event);
+                    for (ParticipationRequest pending : pendingToReject) {
+                        rejected.add(ParticipationRequestMapper.toDto(pending));
+                    }
+                    toSave.addAll(pendingToReject);
                     break;
                 }
 
             } else {
                 request.setStatus(ParticipationRequestStatus.REJECTED);
-                rejected.add(ParticipationRequestMapper.toDto(requestRepository.save(request)));
+                rejected.add(ParticipationRequestMapper.toDto(request));
+                toSave.add(request);
             }
+        }
+
+        if (!toSave.isEmpty()) {
+            requestRepository.saveAll(toSave);
         }
 
         eventRepository.save(event);
         return new EventRequestStatusUpdateResult(confirmed, rejected);
     }
 
-    private void rejectPending(Event event, List<ParticipationRequestDto> rejected) {
+    private List<ParticipationRequest> rejectPending(Event event) {
         List<ParticipationRequest> pendingRequests =
                 requestRepository.findAllByEventIdAndStatusIn(
                         event.getId(),
@@ -196,8 +209,8 @@ public class ParticipationRequestService {
 
         for (ParticipationRequest pending : pendingRequests) {
             pending.setStatus(ParticipationRequestStatus.REJECTED);
-            rejected.add(ParticipationRequestMapper.toDto(requestRepository.save(pending)));
         }
+        return pendingRequests;
     }
 
     private Event getOwnedEvent(Long userId, Long eventId) {

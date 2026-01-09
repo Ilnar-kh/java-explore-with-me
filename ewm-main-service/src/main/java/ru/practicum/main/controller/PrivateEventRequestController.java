@@ -3,7 +3,9 @@ package ru.practicum.main.controller;
 import jakarta.validation.Valid;
 import java.util.List;
 
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,7 +18,7 @@ import ru.practicum.main.dto.EventRequestStatusUpdateResult;
 import ru.practicum.main.dto.ParticipationRequestDto;
 import ru.practicum.main.service.ParticipationRequestService;
 
-@Valid
+@Validated
 @RestController
 @RequestMapping("/users/{userId}/events/{eventId}/requests")
 public class PrivateEventRequestController {
@@ -29,16 +31,16 @@ public class PrivateEventRequestController {
 
     @GetMapping
     public ResponseEntity<List<ParticipationRequestDto>> getEventParticipants(
-            @PathVariable Long userId,
-            @PathVariable Long eventId) {
+            @PathVariable @Positive Long userId,
+            @PathVariable @Positive Long eventId) {
 
         return ResponseEntity.ok(participationRequestService.getEventParticipants(userId, eventId));
     }
 
     @PatchMapping
     public ResponseEntity<EventRequestStatusUpdateResult> changeRequestStatus(
-            @PathVariable Long userId,
-            @PathVariable Long eventId,
+            @PathVariable @Positive Long userId,
+            @PathVariable @Positive Long eventId,
             @Valid @RequestBody EventRequestStatusUpdateRequest dto) {
 
         return ResponseEntity.ok(participationRequestService.changeRequestStatus(userId, eventId, dto));

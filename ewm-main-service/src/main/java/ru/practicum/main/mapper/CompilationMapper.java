@@ -4,15 +4,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import ru.practicum.main.compilation.model.Compilation;
 import ru.practicum.main.dto.CompilationDto;
 import ru.practicum.main.dto.EventShortDto;
 import ru.practicum.main.event.model.Event;
 
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class CompilationMapper {
-
-    private CompilationMapper() {
-    }
 
     public static CompilationDto toDto(Compilation compilation, Map<Long, Long> eventViews) {
 

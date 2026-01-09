@@ -2,7 +2,9 @@ package ru.practicum.main.controller;
 
 import java.util.List;
 
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.main.dto.CompilationDto;
 import ru.practicum.main.service.CompilationService;
 
+@Validated
 @RestController
 @RequestMapping("/compilations")
 public class PublicCompilationController {
@@ -34,7 +37,7 @@ public class PublicCompilationController {
     }
 
     @GetMapping("/{compId}")
-    public ResponseEntity<CompilationDto> getCompilation(@PathVariable Long compId) {
+    public ResponseEntity<CompilationDto> getCompilation(@PathVariable @Positive Long compId) {
         return ResponseEntity.ok(
                 compilationService.getCompilation(compId)
         );

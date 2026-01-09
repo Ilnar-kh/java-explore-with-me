@@ -3,7 +3,9 @@ package ru.practicum.main.controller;
 import jakarta.validation.Valid;
 import java.util.List;
 
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,6 +19,7 @@ import ru.practicum.main.dto.NewUserRequest;
 import ru.practicum.main.dto.UserDto;
 import ru.practicum.main.service.UserService;
 
+@Validated
 @RestController
 @RequestMapping("/admin/users")
 public class AdminUserController {
@@ -42,7 +45,7 @@ public class AdminUserController {
     }
 
     @DeleteMapping("/{userId}")
-    public ResponseEntity<Void> deleteUser(@PathVariable Long userId) {
+    public ResponseEntity<Void> deleteUser(@PathVariable @Positive Long userId) {
         userService.deleteUser(userId);
         return ResponseEntity.noContent().build();
     }

@@ -2,7 +2,10 @@ package ru.practicum.main.controller;
 
 import java.util.List;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.practicum.main.dto.ParticipationRequestDto;
 import ru.practicum.main.service.ParticipationRequestService;
 
+@Validated
 @RestController
 @RequestMapping("/users/{userId}/requests")
 public class PrivateParticipationController {
@@ -25,19 +29,19 @@ public class PrivateParticipationController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ParticipationRequestDto>> getUserRequests(@PathVariable Long userId) {
+    public ResponseEntity<List<ParticipationRequestDto>> getUserRequests(@PathVariable @Positive Long userId) {
         return ResponseEntity.ok(participationRequestService.getUserRequests(userId));
     }
 
     @PostMapping
-    public ResponseEntity<ParticipationRequestDto> addParticipationRequest(@PathVariable Long userId,
-                                                                           @RequestParam Long eventId) {
+    public ResponseEntity<ParticipationRequestDto> addParticipationRequest(@PathVariable @Positive Long userId,
+                                                                           @RequestParam @Positive Long eventId) {
         return ResponseEntity.status(201).body(participationRequestService.addParticipationRequest(userId, eventId));
     }
 
     @PatchMapping("/{requestId}/cancel")
-    public ResponseEntity<ParticipationRequestDto> cancelRequest(@PathVariable Long userId,
-                                                                 @PathVariable Long requestId) {
+    public ResponseEntity<ParticipationRequestDto> cancelRequest(@PathVariable @Positive Long userId,
+                                                                 @PathVariable @Positive Long requestId) {
         return ResponseEntity.ok(participationRequestService.cancelRequest(userId, requestId));
     }
 }

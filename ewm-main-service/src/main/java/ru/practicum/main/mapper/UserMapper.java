@@ -1,14 +1,14 @@
 package ru.practicum.main.mapper;
 
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import ru.practicum.main.dto.NewUserRequest;
 import ru.practicum.main.dto.UserDto;
 import ru.practicum.main.dto.UserShortDto;
 import ru.practicum.main.user.model.User;
 
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class UserMapper {
-
-    private UserMapper() {
-    }
 
     public static User toEntity(NewUserRequest dto) {
         User user = new User();

@@ -1,7 +1,9 @@
 package ru.practicum.main.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -13,6 +15,7 @@ import ru.practicum.main.dto.CategoryDto;
 import ru.practicum.main.dto.NewCategoryDto;
 import ru.practicum.main.service.CategoryService;
 
+@Validated
 @RestController
 @RequestMapping("/admin/categories")
 public class AdminCategoryController {
@@ -29,13 +32,13 @@ public class AdminCategoryController {
     }
 
     @PatchMapping("/{catId}")
-    public ResponseEntity<CategoryDto> updateCategory(@PathVariable Long catId,
+    public ResponseEntity<CategoryDto> updateCategory(@PathVariable @Positive Long catId,
                                                       @Valid @RequestBody CategoryDto dto) {
         return ResponseEntity.ok(categoryService.updateCategory(catId, dto));
     }
 
     @DeleteMapping("/{catId}")
-    public ResponseEntity<Void> deleteCategory(@PathVariable Long catId) {
+    public ResponseEntity<Void> deleteCategory(@PathVariable @Positive Long catId) {
         categoryService.deleteCategory(catId);
         return ResponseEntity.noContent().build();
     }
