@@ -2,7 +2,6 @@ package ru.practicum.main.controller;
 
 import java.util.List;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
