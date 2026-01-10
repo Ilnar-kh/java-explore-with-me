@@ -2,17 +2,20 @@
 INSERT INTO users (id, email, name)
 VALUES
   (1, 'user1@mail.com', 'User One'),
-  (2, 'admin@mail.com', 'Admin');
+  (2, 'admin@mail.com', 'Admin')
+ON CONFLICT (id) DO NOTHING;
 
 -- CATEGORIES
 INSERT INTO categories (id, name)
 VALUES
-  (1, 'IT');
+  (1, 'IT')
+ON CONFLICT (id) DO NOTHING;
 
 -- LOCATIONS
 INSERT INTO locations (id, lat, lon)
 VALUES
-  (1, 55.75, 37.61);
+  (1, 55.75, 37.61)
+ON CONFLICT (id) DO NOTHING;
 
 -- EVENTS
 INSERT INTO events (
@@ -39,7 +42,8 @@ VALUES
     1,
     1,
     1
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- COMMENTS
 INSERT INTO comments (
@@ -53,4 +57,25 @@ VALUES
     now(),
     1,
     1
-);
+)
+ON CONFLICT (id) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('users', 'id'),
+              (SELECT COALESCE(MAX(id), 0) FROM users),
+              true);
+
+SELECT setval(pg_get_serial_sequence('categories', 'id'),
+              (SELECT COALESCE(MAX(id), 0) FROM categories),
+              true);
+
+SELECT setval(pg_get_serial_sequence('locations', 'id'),
+              (SELECT COALESCE(MAX(id), 0) FROM locations),
+              true);
+
+SELECT setval(pg_get_serial_sequence('events', 'id'),
+              (SELECT COALESCE(MAX(id), 0) FROM events),
+              true);
+
+SELECT setval(pg_get_serial_sequence('comments', 'id'),
+              (SELECT COALESCE(MAX(id), 0) FROM comments),
+              true);
